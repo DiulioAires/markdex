@@ -1,8 +1,14 @@
 use crate::models::{FileNode, ProjectInfo};
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, OpenOptions},
+};
 use std::{
     cmp::Ordering,
-    fs,
+    io::{Read, Write},
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -29,8 +35,105 @@ struct TreeEntry {
     kind: EntryKind,
 }
 
+pub struct AuthorizedProjectRoot {
+    project: Mutex<Option<AuthorizedProject>>,
+}
+
+struct AuthorizedProject {
+    path: PathBuf,
+    directory: Dir,
+}
+
+#[derive(Debug)]
+struct AuthorizedProjectAccess {
+    canonical_root: PathBuf,
+    requested_root: PathBuf,
+    directory: Dir,
+}
+
+impl Default for AuthorizedProjectRoot {
+    fn default() -> Self {
+        Self {
+            project: Mutex::new(None),
+        }
+    }
+}
+
+impl AuthorizedProjectRoot {
+    fn authorize(&self, root: &Path) -> Result<PathBuf, String> {
+        let path = canonical_project_root(root)?;
+        let directory = Dir::open_ambient_dir(&path, ambient_authority())
+            .map_err(|error| format!("Failed to open project directory: {error}"))?;
+        let mut project = self
+            .project
+            .lock()
+            .map_err(|_| "Open project state is unavailable".to_owned())?;
+
+        *project = Some(AuthorizedProject {
+            path: path.clone(),
+            directory,
+        });
+
+        Ok(path)
+    }
+
+    fn require(&self, requested_root: &Path) -> Result<AuthorizedProjectAccess, String> {
+        let requested_path = canonical_project_root(requested_root)?;
+        let project = self
+            .project
+            .lock()
+            .map_err(|_| "Open project state is unavailable".to_owned())?;
+        let project = project
+            .as_ref()
+            .ok_or_else(|| "No project is open".to_owned())?;
+
+        if requested_path != project.path {
+            return Err("Requested root does not match the open project".to_owned());
+        }
+
+        Ok(AuthorizedProjectAccess {
+            canonical_root: project.path.clone(),
+            requested_root: requested_root.to_owned(),
+            directory: project
+                .directory
+                .try_clone()
+                .map_err(|error| format!("Failed to access open project: {error}"))?,
+        })
+    }
+}
+
+impl AuthorizedProjectAccess {
+    fn file_path(&self, file_path: &Path) -> Result<PathBuf, String> {
+        let relative_path = file_path
+            .strip_prefix(&self.requested_root)
+            .map_err(|_| "Path is outside the open project".to_owned())?;
+
+        if relative_path.as_os_str().is_empty()
+            || relative_path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err("Path is outside the open project".to_owned());
+        }
+
+        if !is_markdown_path(relative_path) {
+            return Err("Only .md and .mdx files are allowed".to_owned());
+        }
+
+        Ok(relative_path.to_owned())
+    }
+}
+
 #[tauri::command]
-pub fn open_project(app: tauri::AppHandle) -> Result<Option<ProjectInfo>, String> {
+pub fn open_project(
+    app: tauri::AppHandle,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<Option<ProjectInfo>, String> {
     let Some(folder) = app.dialog().file().blocking_pick_folder() else {
         return Ok(None);
     };
@@ -38,7 +141,7 @@ pub fn open_project(app: tauri::AppHandle) -> Result<Option<ProjectInfo>, String
     let selected_path = folder
         .into_path()
         .map_err(|error| format!("Failed to resolve selected folder: {error}"))?;
-    let root = canonical_project_root(&selected_path)?;
+    let root = project_root.authorize(&selected_path)?;
     let name = root
         .file_name()
         .and_then(|name| name.to_str())
@@ -52,15 +155,56 @@ pub fn open_project(app: tauri::AppHandle) -> Result<Option<ProjectInfo>, String
 }
 
 #[tauri::command]
-pub fn list_markdown_tree(root_path: String) -> Result<Vec<FileNode>, String> {
-    let root = canonical_project_root(Path::new(&root_path))?;
-    read_markdown_directory(&root, &root)
+pub fn list_markdown_tree(
+    root_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<Vec<FileNode>, String> {
+    list_markdown_tree_for(project_root.inner(), root_path)
+}
+
+fn list_markdown_tree_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+) -> Result<Vec<FileNode>, String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    read_markdown_directory(&project.canonical_root, &project.directory, Path::new(""))
 }
 
 #[tauri::command]
-pub fn read_markdown_file(root_path: String, file_path: String) -> Result<String, String> {
-    let file = resolve_markdown_path(Path::new(&root_path), Path::new(&file_path))?;
-    fs::read_to_string(file).map_err(|error| format!("Failed to read Markdown file: {error}"))
+pub fn read_markdown_file(
+    root_path: String,
+    file_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<String, String> {
+    read_markdown_file_for(project_root.inner(), root_path, file_path)
+}
+
+fn read_markdown_file_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    file_path: String,
+) -> Result<String, String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let file_path = project.file_path(Path::new(&file_path))?;
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let mut file = project
+        .directory
+        .open_with(file_path, &options)
+        .map_err(|error| format!("Failed to read Markdown file: {error}"))?;
+
+    if !file
+        .metadata()
+        .map_err(|error| format!("Failed to inspect Markdown file: {error}"))?
+        .is_file()
+    {
+        return Err("Path is not a file".to_owned());
+    }
+
+    let mut content = String::new();
+    file.read_to_string(&mut content)
+        .map_err(|error| format!("Failed to read Markdown file: {error}"))?;
+    Ok(content)
 }
 
 #[tauri::command]
@@ -68,9 +212,39 @@ pub fn write_markdown_file(
     root_path: String,
     file_path: String,
     content: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
 ) -> Result<(), String> {
-    let file = resolve_markdown_path(Path::new(&root_path), Path::new(&file_path))?;
-    fs::write(file, content).map_err(|error| format!("Failed to write Markdown file: {error}"))
+    write_markdown_file_for(project_root.inner(), root_path, file_path, content)
+}
+
+fn write_markdown_file_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let file_path = project.file_path(Path::new(&file_path))?;
+    let mut options = OpenOptions::new();
+    options
+        .write(true)
+        .truncate(true)
+        .follow(FollowSymlinks::No);
+    let mut file = project
+        .directory
+        .open_with(file_path, &options)
+        .map_err(|error| format!("Failed to write Markdown file: {error}"))?;
+
+    if !file
+        .metadata()
+        .map_err(|error| format!("Failed to inspect Markdown file: {error}"))?
+        .is_file()
+    {
+        return Err("Path is not a file".to_owned());
+    }
+
+    file.write_all(content.as_bytes())
+        .map_err(|error| format!("Failed to write Markdown file: {error}"))
 }
 
 pub fn validate_markdown_path(root: &Path, file: &Path) -> Result<(), String> {
@@ -115,10 +289,15 @@ fn canonical_project_root(root: &Path) -> Result<PathBuf, String> {
     Ok(canonical_root)
 }
 
-fn read_markdown_directory(root: &Path, directory: &Path) -> Result<Vec<FileNode>, String> {
+fn read_markdown_directory(
+    root: &Path,
+    directory: &Dir,
+    relative_directory: &Path,
+) -> Result<Vec<FileNode>, String> {
     let mut entries = Vec::new();
 
-    for entry in fs::read_dir(directory)
+    for entry in directory
+        .entries()
         .map_err(|error| format!("Failed to list project directory: {error}"))?
     {
         let entry = entry.map_err(|error| format!("Failed to inspect project entry: {error}"))?;
@@ -136,26 +315,14 @@ fn read_markdown_directory(root: &Path, directory: &Path) -> Result<Vec<FileNode
                 continue;
             }
             EntryKind::Directory
-        } else if file_type.is_file() && is_markdown_path(&entry.path()) {
+        } else if file_type.is_file() && is_markdown_path(Path::new(&name)) {
             EntryKind::File
         } else {
             continue;
         };
 
-        let path = entry
-            .path()
-            .canonicalize()
-            .map_err(|error| format!("Failed to resolve project entry: {error}"))?;
-
-        if !path.starts_with(root) {
-            continue;
-        }
-
-        entries.push(TreeEntry {
-            name,
-            path,
-            kind,
-        });
+        let path = relative_directory.join(&name);
+        entries.push(TreeEntry { name, path, kind });
     }
 
     entries.sort_by(compare_tree_entries);
@@ -163,21 +330,26 @@ fn read_markdown_directory(root: &Path, directory: &Path) -> Result<Vec<FileNode
     entries
         .into_iter()
         .map(|entry| {
-            let relative_path = entry
-                .path
-                .strip_prefix(root)
-                .map_err(|_| "Path is outside the open project".to_owned())?;
             let name = entry.name;
-            let path = path_to_string(&entry.path);
-            let relative_path = path_to_string(relative_path);
+            let path = path_to_string(&root.join(&entry.path));
+            let relative_path = path_to_string(&entry.path);
 
             match entry.kind {
-                EntryKind::Directory => Ok(FileNode::Directory {
-                    name,
-                    path,
-                    relative_path,
-                    children: read_markdown_directory(root, &entry.path)?,
-                }),
+                EntryKind::Directory => {
+                    let children = read_markdown_directory(
+                        root,
+                        &directory.open_dir(&name).map_err(|error| {
+                            format!("Failed to open project directory: {error}")
+                        })?,
+                        &entry.path,
+                    )?;
+                    Ok(FileNode::Directory {
+                        name,
+                        path,
+                        relative_path,
+                        children,
+                    })
+                }
                 EntryKind::File => Ok(FileNode::File {
                     name,
                     path,
@@ -255,6 +427,21 @@ mod tests {
     }
 
     #[test]
+    fn rejects_a_root_that_was_not_authorized_by_open_project() {
+        let authorized = tempfile::tempdir().unwrap();
+        let requested = tempfile::tempdir().unwrap();
+        fs::write(requested.path().join("README.md"), "# Other project").unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+
+        project_root.authorize(authorized.path()).unwrap();
+
+        assert_eq!(
+            project_root.require(requested.path()).unwrap_err(),
+            "Requested root does not match the open project"
+        );
+    }
+
+    #[test]
     fn lists_directories_before_markdown_files_and_ignores_global_directories() {
         let dir = tempfile::tempdir().unwrap();
         fs::create_dir(dir.path().join("zeta")).unwrap();
@@ -264,7 +451,9 @@ mod tests {
         fs::write(dir.path().join("notes.MDX"), "# Notes").unwrap();
         fs::write(dir.path().join("secret.txt"), "secret").unwrap();
 
-        let tree = list_markdown_tree(dir.path().display().to_string()).unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+        let tree = list_markdown_tree_for(&project_root, dir.path().display().to_string()).unwrap();
         let names: Vec<&str> = tree
             .iter()
             .map(|node| match node {
@@ -276,18 +465,52 @@ mod tests {
     }
 
     #[test]
+    fn lists_markdown_files_in_nested_directories_from_the_open_handle() {
+        let dir = tempfile::tempdir().unwrap();
+        let docs = dir.path().join("docs");
+        let guides = docs.join("guides");
+        fs::create_dir_all(&guides).unwrap();
+        fs::write(guides.join("install.md"), "# Install").unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+
+        let tree = list_markdown_tree_for(&project_root, dir.path().display().to_string()).unwrap();
+
+        let FileNode::Directory {
+            children: docs_children,
+            ..
+        } = &tree[0]
+        else {
+            panic!("expected docs directory");
+        };
+        let FileNode::Directory {
+            children: guides_children,
+            ..
+        } = &docs_children[0]
+        else {
+            panic!("expected guides directory");
+        };
+        assert!(matches!(
+            &guides_children[0],
+            FileNode::File { relative_path, .. } if relative_path == "docs\\guides\\install.md" || relative_path == "docs/guides/install.md"
+        ));
+    }
+
+    #[test]
     fn reads_and_writes_a_markdown_file_inside_project() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("README.md");
         fs::write(&file, "# Before").unwrap();
         let root_path = dir.path().display().to_string();
         let file_path = file.display().to_string();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
 
         assert_eq!(
-            read_markdown_file(root_path.clone(), file_path.clone()).unwrap(),
+            read_markdown_file_for(&project_root, root_path.clone(), file_path.clone()).unwrap(),
             "# Before"
         );
-        write_markdown_file(root_path, file_path, "# After".to_owned()).unwrap();
+        write_markdown_file_for(&project_root, root_path, file_path, "# After".to_owned()).unwrap();
         assert_eq!(fs::read_to_string(file).unwrap(), "# After");
     }
 }
