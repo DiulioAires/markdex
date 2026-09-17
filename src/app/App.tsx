@@ -1,14 +1,22 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppShell } from './AppShell'
 import { WelcomeView } from '../features/projects/WelcomeView'
 import { useProjectController } from '../features/projects/use-project-controller'
+import type { ProjectControllerStatus } from '../features/projects/use-project-controller'
 import { ExplorerPanel } from '../features/explorer/ExplorerPanel'
 import { EditorWorkspace } from '../features/editor/EditorWorkspace'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Toast } from '../components/ui/Toast'
 import { useWorkspaceStore } from '../stores/workspace-store'
+import type { NativeApi } from '../lib/native-api'
 
-export function App() {
+export interface AppProps {
+  api?: NativeApi
+}
+
+export function App({ api }: AppProps = {}) {
   const { openProject, openFile, saveActiveFile, status, error, tree, refreshTree } =
-    useProjectController()
+    useProjectController(api)
   const project = useWorkspaceStore((state) => state.project)
   const tabs = useWorkspaceStore((state) => state.tabs)
   const activeTabPath = useWorkspaceStore((state) => state.activeTabPath)
@@ -17,6 +25,25 @@ export function App() {
 
   const isOpening = status === 'opening-project'
   const activeTab = tabs.find((tab) => tab.path === activeTabPath) ?? null
+
+  // The controller reports every failure through a single `error` field. To
+  // show save failures as a non-destructive toast (keeping the editor intact)
+  // while still showing tree/file load failures as an inline, retryable
+  // panel, track which status preceded the current error.
+  const previousStatusRef = useRef<ProjectControllerStatus>(status)
+  const [errorSource, setErrorSource] = useState<'save' | 'other' | null>(null)
+
+  useEffect(() => {
+    if (error) {
+      setErrorSource(previousStatusRef.current === 'saving' ? 'save' : 'other')
+    } else {
+      setErrorSource(null)
+    }
+    previousStatusRef.current = status
+  }, [status, error])
+
+  const saveErrorToast = errorSource === 'save' ? error : null
+  const workspaceError = errorSource === 'other' ? error : null
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -43,6 +70,8 @@ export function App() {
     return <WelcomeView onOpenProject={() => void openProject()} isOpening={isOpening} />
   }
 
+  const isTreeEmpty = tree.length === 0 && !workspaceError
+
   return (
     <AppShell
       viewMode={viewMode}
@@ -56,22 +85,48 @@ export function App() {
       isSaving={status === 'saving'}
       onSave={() => void saveActiveFile()}
       explorerSlot={
-        <ExplorerPanel
-          projectName={project.name}
-          nodes={tree}
-          activeFilePath={activeTabPath}
-          onOpenFile={(file) => void openFile(file)}
-          onRefresh={() => void refreshTree()}
-        />
+        isTreeEmpty ? (
+          <EmptyState
+            title="Nenhum arquivo Markdown encontrado"
+            description="Adicione arquivos .md a esta pasta e atualize a árvore."
+            actionLabel="Atualizar"
+            onAction={() => void refreshTree()}
+          />
+        ) : (
+          <ExplorerPanel
+            projectName={project.name}
+            nodes={tree}
+            activeFilePath={activeTabPath}
+            onOpenFile={(file) => void openFile(file)}
+            onRefresh={() => void refreshTree()}
+          />
+        )
       }
       workspaceSlot={
-        error ? (
-          <p role="alert" className="workspace-placeholder workspace-placeholder--error">
-            {error}
-          </p>
+        workspaceError ? (
+          <EmptyState
+            title="Não foi possível carregar"
+            description={workspaceError}
+            actionLabel="Tentar novamente"
+            onAction={() => void refreshTree()}
+          />
         ) : (
-          <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} />
+          <>
+            {status === 'opening-file' ? (
+              <div className="loading-skeleton" role="status" aria-label="Carregando arquivo">
+                <span className="loading-skeleton__bar" />
+                <span className="loading-skeleton__bar" />
+                <span className="loading-skeleton__bar" />
+              </div>
+            ) : null}
+            <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} />
+          </>
         )
+      }
+      toastSlot={
+        saveErrorToast ? (
+          <Toast message={saveErrorToast} onDismiss={() => setErrorSource(null)} />
+        ) : null
       }
     />
   )

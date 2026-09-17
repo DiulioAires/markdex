@@ -20,7 +20,11 @@ export function StatusBar({ projectName, fileType, cursor, isDirty, isSaving, on
           Ln {cursor.line}, Col {cursor.column}
         </span>
       ) : null}
-      <span className="status-bar__item" data-dirty={isDirty || undefined}>
+      <span
+        className="status-bar__item"
+        data-dirty={isDirty || undefined}
+        aria-live="polite"
+      >
         {savedLabel}
       </span>
       <button

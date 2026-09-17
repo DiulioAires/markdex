@@ -25,6 +25,7 @@ export interface AppShellProps {
   onSave: () => void
   explorerSlot: ReactNode
   workspaceSlot: ReactNode
+  toastSlot?: ReactNode
 }
 
 export function AppShell({
@@ -40,6 +41,7 @@ export function AppShell({
   onSave,
   explorerSlot,
   workspaceSlot,
+  toastSlot,
 }: AppShellProps) {
   const [explorerWidth, setExplorerWidth] = useState(DEFAULT_EXPLORER_WIDTH)
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -116,6 +118,7 @@ export function AppShell({
         isSaving={isSaving}
         onSave={onSave}
       />
+      {toastSlot}
     </div>
   )
 }
