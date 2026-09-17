@@ -2,10 +2,11 @@ import { useEffect } from 'react'
 import { AppShell } from './AppShell'
 import { WelcomeView } from '../features/projects/WelcomeView'
 import { useProjectController } from '../features/projects/use-project-controller'
+import { ExplorerPanel } from '../features/explorer/ExplorerPanel'
 import { useWorkspaceStore } from '../stores/workspace-store'
 
 export function App() {
-  const { openProject, status, error } = useProjectController()
+  const { openProject, openFile, status, error, tree, refreshTree } = useProjectController()
   const project = useWorkspaceStore((state) => state.project)
   const tabs = useWorkspaceStore((state) => state.tabs)
   const activeTabPath = useWorkspaceStore((state) => state.activeTabPath)
@@ -42,7 +43,15 @@ export function App() {
       cursor={activeTab ? activeTab.cursor : null}
       isDirty={activeTab?.isDirty ?? false}
       isSaving={status === 'saving'}
-      explorerSlot={<p className="explorer-placeholder">Árvore de arquivos em breve.</p>}
+      explorerSlot={
+        <ExplorerPanel
+          projectName={project.name}
+          nodes={tree}
+          activeFilePath={activeTabPath}
+          onOpenFile={(file) => void openFile(file)}
+          onRefresh={() => void refreshTree()}
+        />
+      }
       workspaceSlot={
         error ? (
           <p role="alert" className="workspace-placeholder workspace-placeholder--error">

@@ -16,6 +16,7 @@ function errorMessage(error: unknown): string {
 export function useProjectController(api: NativeApi = defaultNativeApi) {
   const [status, setStatus] = useState<ProjectControllerStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [tree, setTree] = useState<FileNode[]>([])
 
   const setProject = useWorkspaceStore((state) => state.setProject)
   const openTab = useWorkspaceStore((state) => state.openTab)
@@ -30,15 +31,31 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
       if (!project) {
         return
       }
-      const tree = await api.listTree(project.rootPath)
+      const nextTree = await api.listTree(project.rootPath)
       setProject(project)
-      return tree
+      setTree(nextTree)
+      return nextTree
     } catch (caughtError) {
       setError(errorMessage(caughtError))
     } finally {
       setStatus('idle')
     }
   }, [api, setProject])
+
+  const refreshTree = useCallback(async () => {
+    const { project } = useWorkspaceStore.getState()
+    if (!project) {
+      return
+    }
+
+    setError(null)
+    try {
+      const nextTree = await api.listTree(project.rootPath)
+      setTree(nextTree)
+    } catch (caughtError) {
+      setError(errorMessage(caughtError))
+    }
+  }, [api])
 
   const openFile = useCallback(
     async (file: FileNode) => {
@@ -91,5 +108,5 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     }
   }, [api, markSaved])
 
-  return { openProject, openFile, saveActiveFile, status, error }
+  return { openProject, openFile, saveActiveFile, status, error, tree, refreshTree }
 }

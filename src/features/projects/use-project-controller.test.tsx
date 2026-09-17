@@ -40,6 +40,57 @@ describe('useProjectController', () => {
     expect(result.current.error).toBeNull()
   })
 
+  it('exposes the tree returned by openProject on the hook result', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+
+    expect(result.current.tree).toEqual([readme])
+  })
+
+  it('refreshes the tree by re-running listTree for the current project', async () => {
+    const updatedTree: FileNode[] = [
+      readme,
+      {
+        kind: 'file',
+        name: 'CHANGELOG.md',
+        path: 'C:\\work\\CHANGELOG.md',
+        relativePath: 'CHANGELOG.md',
+      },
+    ]
+    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockResolvedValueOnce(updatedTree)
+    const api = createFakeApi({ listTree })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+    expect(result.current.tree).toEqual([readme])
+
+    await act(async () => {
+      await result.current.refreshTree()
+    })
+
+    expect(listTree).toHaveBeenCalledTimes(2)
+    expect(listTree).toHaveBeenLastCalledWith(project.rootPath)
+    expect(result.current.tree).toEqual(updatedTree)
+  })
+
+  it('does nothing when refreshTree is called without an open project', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.refreshTree()
+    })
+
+    expect(api.listTree).not.toHaveBeenCalled()
+    expect(result.current.tree).toEqual([])
+  })
+
   it('does not store a project or tree when the user cancels the dialog', async () => {
     const api = createFakeApi({ openProject: vi.fn().mockResolvedValue(null) })
     const { result } = renderHook(() => useProjectController(api))
