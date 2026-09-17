@@ -4,9 +4,10 @@ export interface StatusBarProps {
   cursor: { line: number; column: number } | null
   isDirty: boolean
   isSaving: boolean
+  onSave: () => void
 }
 
-export function StatusBar({ projectName, fileType, cursor, isDirty, isSaving }: StatusBarProps) {
+export function StatusBar({ projectName, fileType, cursor, isDirty, isSaving, onSave }: StatusBarProps) {
   const savedLabel = isSaving ? 'Salvando…' : isDirty ? 'Alterações não salvas' : 'Salvo'
 
   return (
@@ -22,6 +23,14 @@ export function StatusBar({ projectName, fileType, cursor, isDirty, isSaving }: 
       <span className="status-bar__item" data-dirty={isDirty || undefined}>
         {savedLabel}
       </span>
+      <button
+        type="button"
+        className="status-bar__save"
+        onClick={onSave}
+        disabled={!isDirty || isSaving}
+      >
+        Salvar
+      </button>
     </footer>
   )
 }

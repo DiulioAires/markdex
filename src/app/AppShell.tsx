@@ -22,6 +22,7 @@ export interface AppShellProps {
   cursor: { line: number; column: number } | null
   isDirty: boolean
   isSaving: boolean
+  onSave: () => void
   explorerSlot: ReactNode
   workspaceSlot: ReactNode
 }
@@ -36,6 +37,7 @@ export function AppShell({
   cursor,
   isDirty,
   isSaving,
+  onSave,
   explorerSlot,
   workspaceSlot,
 }: AppShellProps) {
@@ -112,6 +114,7 @@ export function AppShell({
         cursor={cursor}
         isDirty={isDirty}
         isSaving={isSaving}
+        onSave={onSave}
       />
     </div>
   )

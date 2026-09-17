@@ -7,7 +7,8 @@ import { EditorWorkspace } from '../features/editor/EditorWorkspace'
 import { useWorkspaceStore } from '../stores/workspace-store'
 
 export function App() {
-  const { openProject, openFile, status, error, tree, refreshTree } = useProjectController()
+  const { openProject, openFile, saveActiveFile, status, error, tree, refreshTree } =
+    useProjectController()
   const project = useWorkspaceStore((state) => state.project)
   const tabs = useWorkspaceStore((state) => state.tabs)
   const activeTabPath = useWorkspaceStore((state) => state.activeTabPath)
@@ -20,14 +21,23 @@ export function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const isOpenShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o'
-      if (!isOpenShortcut) return
+      if (isOpenShortcut) {
+        event.preventDefault()
+        void openProject()
+        return
+      }
+
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's'
+      if (!isSaveShortcut) return
+      const { activeTabPath } = useWorkspaceStore.getState()
+      if (!activeTabPath) return
       event.preventDefault()
-      void openProject()
+      void saveActiveFile()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [openProject])
+  }, [openProject, saveActiveFile])
 
   if (!project) {
     return <WelcomeView onOpenProject={() => void openProject()} isOpening={isOpening} />
@@ -44,6 +54,7 @@ export function App() {
       cursor={activeTab ? activeTab.cursor : null}
       isDirty={activeTab?.isDirty ?? false}
       isSaving={status === 'saving'}
+      onSave={() => void saveActiveFile()}
       explorerSlot={
         <ExplorerPanel
           projectName={project.name}
