@@ -34,7 +34,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
       const nextTree = await api.listTree(project.rootPath)
       setProject(project)
       setTree(nextTree)
-      return nextTree
     } catch (caughtError) {
       setError(errorMessage(caughtError))
     } finally {

@@ -156,7 +156,6 @@ button {
   background: var(--color-surface-0);
 }
 
-.explorer-placeholder,
 .workspace-placeholder {
   padding: 1rem;
   color: var(--color-text-muted);
@@ -165,6 +164,108 @@ button {
 
 .workspace-placeholder--error {
   color: var(--color-danger);
+}
+
+/* Explorer panel */
+
+.explorer-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.explorer-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0.5rem;
+}
+
+.explorer-panel__title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* File tree */
+
+.file-tree,
+.file-tree__group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-tree__node {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-tree__node:hover {
+  background: var(--color-surface-raised);
+}
+
+.file-tree__node--directory {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.file-tree__node--file {
+  color: var(--color-text);
+  font-weight: 400;
+}
+
+.file-tree__node--active {
+  background: var(--color-surface-raised);
+  color: var(--color-accent);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.file-tree__chevron {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.625rem;
+  transition: transform 0.1s ease;
+}
+
+.file-tree__icon {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.file-tree__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree__empty {
+  margin: 0;
+  padding: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
 }
 
 /* Activity bar */
