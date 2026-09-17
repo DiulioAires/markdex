@@ -3,6 +3,7 @@ import { AppShell } from './AppShell'
 import { WelcomeView } from '../features/projects/WelcomeView'
 import { useProjectController } from '../features/projects/use-project-controller'
 import { ExplorerPanel } from '../features/explorer/ExplorerPanel'
+import { EditorWorkspace } from '../features/editor/EditorWorkspace'
 import { useWorkspaceStore } from '../stores/workspace-store'
 
 export function App() {
@@ -58,7 +59,7 @@ export function App() {
             {error}
           </p>
         ) : (
-          <p className="workspace-placeholder">Selecione um arquivo para começar a editar.</p>
+          <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} />
         )
       }
     />
