@@ -8,3 +8,4 @@ work/
 .env
 .env.*
 !.env.example
+docs/superpowers/
