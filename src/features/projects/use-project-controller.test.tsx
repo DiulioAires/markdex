@@ -108,6 +108,24 @@ describe('useProjectController', () => {
     expect(useWorkspaceStore.getState().projects).toEqual([])
   })
 
+  it('keeps the project in the store and exposes the error when closeProject is rejected', async () => {
+    const api = createFakeApi({
+      closeProject: vi.fn().mockRejectedValue(new Error('root not open')),
+    })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+    await act(async () => {
+      await result.current.closeProject(project.rootPath)
+    })
+
+    expect(useWorkspaceStore.getState().projects).toHaveLength(1)
+    expect(useWorkspaceStore.getState().projects[0].info).toEqual(project)
+    expect(result.current.error).toBe('root not open')
+  })
+
   it('refreshes the tree for the given project only', async () => {
     const updatedTree: FileNode[] = [
       readme,

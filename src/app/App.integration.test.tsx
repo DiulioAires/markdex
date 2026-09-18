@@ -156,10 +156,13 @@ describe('App integration journey', () => {
     await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
     await screen.findByText('README.md')
 
+    await user.click(screen.getByText('README.md'))
+    await screen.findByRole('textbox')
+
     await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
     await screen.findByText('post.md')
 
-    expect(screen.getByText('README.md')).toBeInTheDocument()
+    expect(screen.getAllByText('README.md').length).toBeGreaterThan(0)
     expect(screen.getByText('post.md')).toBeInTheDocument()
 
     await user.click(screen.getByText('post.md'))
@@ -167,7 +170,8 @@ describe('App integration journey', () => {
 
     await user.click(screen.getByRole('button', { name: 'Fechar projeto Blog' }))
 
-    expect(screen.queryByText('post.md')).not.toBeInTheDocument()
-    expect(screen.getByText('README.md')).toBeInTheDocument()
+    const tablist = screen.getByRole('tablist')
+    expect(within(tablist).queryByText('post.md')).not.toBeInTheDocument()
+    expect(within(tablist).getByText('README.md')).toBeInTheDocument()
   })
 })

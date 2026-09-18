@@ -3,15 +3,16 @@ import { MarkdownEditor } from './MarkdownEditor'
 import { MarkdownPreview } from '../preview/MarkdownPreview'
 import { ViewModeSwitch } from './ViewModeSwitch'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import type { DocumentTab } from '../../types/project'
+import type { DocumentTab, ProjectEntry } from '../../types/project'
 
 export interface EditorWorkspaceProps {
   tabs: DocumentTab[]
   activeTab: DocumentTab | null
   activeTabPath: string | null
+  projects: ProjectEntry[]
 }
 
-export function EditorWorkspace({ tabs, activeTab, activeTabPath }: EditorWorkspaceProps) {
+export function EditorWorkspace({ tabs, activeTab, activeTabPath, projects }: EditorWorkspaceProps) {
   const activateTab = useWorkspaceStore((state) => state.activateTab)
   const closeTab = useWorkspaceStore((state) => state.closeTab)
   const updateBuffer = useWorkspaceStore((state) => state.updateBuffer)
@@ -31,6 +32,7 @@ export function EditorWorkspace({ tabs, activeTab, activeTabPath }: EditorWorksp
       <TabBar
         tabs={tabs}
         activeTabPath={activeTabPath}
+        projects={projects}
         onActivateTab={activateTab}
         onCloseTab={closeTab}
       />

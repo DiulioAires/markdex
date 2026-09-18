@@ -26,6 +26,8 @@ export function App({ api }: AppProps = {}) {
   const activeProject = activeTab
     ? projects.find((entry) => entry.info.rootPath === activeTab.rootPath) ?? null
     : null
+  const statusBarProjectName =
+    activeProject?.info.name ?? (projects.length === 1 ? projects[0].info.name : null)
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const visibleError = error && error !== dismissedError ? error : null
@@ -35,7 +37,9 @@ export function App({ api }: AppProps = {}) {
       const isOpenShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o'
       if (isOpenShortcut) {
         event.preventDefault()
-        void openProject()
+        if (!isOpening) {
+          void openProject()
+        }
         return
       }
 
@@ -49,7 +53,7 @@ export function App({ api }: AppProps = {}) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [openProject, saveActiveFile])
+  }, [openProject, saveActiveFile, isOpening])
 
   if (projects.length === 0) {
     return <WelcomeView onOpenProject={() => void openProject()} isOpening={isOpening} />
@@ -61,7 +65,7 @@ export function App({ api }: AppProps = {}) {
       onSelectViewMode={setViewMode}
       onOpenProject={() => void openProject()}
       isOpening={isOpening}
-      projectName={activeProject?.info.name ?? null}
+      projectName={statusBarProjectName}
       fileType={activeTab ? activeTab.name.split('.').pop() ?? null : null}
       cursor={activeTab ? activeTab.cursor : null}
       isDirty={activeTab?.isDirty ?? false}
@@ -86,7 +90,12 @@ export function App({ api }: AppProps = {}) {
               <span className="loading-skeleton__bar" />
             </div>
           ) : null}
-          <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} />
+          <EditorWorkspace
+            tabs={tabs}
+            activeTab={activeTab}
+            activeTabPath={activeTabPath}
+            projects={projects}
+          />
         </>
       }
       toastSlot={
