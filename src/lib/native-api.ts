@@ -3,6 +3,7 @@ import type { FileNode, ProjectInfo } from '../types/project'
 
 export interface NativeApi {
   openProject(): Promise<ProjectInfo | null>
+  openProjectAt(rootPath: string): Promise<ProjectInfo>
   listTree(rootPath: string): Promise<FileNode[]>
   readFile(rootPath: string, filePath: string): Promise<string>
   writeFile(rootPath: string, filePath: string, content: string): Promise<void>
@@ -11,6 +12,8 @@ export interface NativeApi {
 
 export const nativeApi: NativeApi = {
   openProject: () => invoke('open_project'),
+
+  openProjectAt: (rootPath) => invoke('open_project_at', { rootPath }),
 
   listTree: (rootPath) => invoke('list_markdown_tree', { rootPath }),
 

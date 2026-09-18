@@ -17,6 +17,12 @@ describe('nativeApi', () => {
     expect(invokeMock).toHaveBeenCalledWith('open_project')
   })
 
+  it('openProjectAt invokes open_project_at with rootPath', async () => {
+    invokeMock.mockResolvedValue({ id: 'proj-123', name: 'Test Project', rootPath: 'C:\\work' })
+    await nativeApi.openProjectAt('C:\\work')
+    expect(invokeMock).toHaveBeenCalledWith('open_project_at', { rootPath: 'C:\\work' })
+  })
+
   it('listTree invokes list_markdown_tree with rootPath', async () => {
     invokeMock.mockResolvedValue([])
     await nativeApi.listTree('C:\\work')
