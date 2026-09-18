@@ -8,6 +8,7 @@ pub fn run() {
         .manage(commands::files::AuthorizedProjectRoot::default())
         .invoke_handler(tauri::generate_handler![
             commands::files::open_project,
+            commands::files::open_project_at,
             commands::files::list_markdown_tree,
             commands::files::read_markdown_file,
             commands::files::write_markdown_file,

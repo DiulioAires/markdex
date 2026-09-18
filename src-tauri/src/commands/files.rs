@@ -165,6 +165,31 @@ pub fn open_project(
 }
 
 #[tauri::command]
+pub fn open_project_at(
+    root_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<ProjectInfo, String> {
+    open_project_at_for(project_root.inner(), root_path)
+}
+
+fn open_project_at_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+) -> Result<ProjectInfo, String> {
+    let root = project_root.authorize(Path::new(&root_path))?;
+    let name = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("Project")
+        .to_owned();
+
+    Ok(ProjectInfo {
+        name,
+        root_path: path_to_string(&root),
+    })
+}
+
+#[tauri::command]
 pub fn list_markdown_tree(
     root_path: String,
     project_root: tauri::State<AuthorizedProjectRoot>,
@@ -540,6 +565,40 @@ mod tests {
             result.unwrap_err(),
             "Requested root does not match an open project"
         );
+    }
+
+    #[test]
+    fn opens_a_project_at_a_known_path_and_returns_its_info() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+
+        let info = open_project_at_for(&project_root, dir.path().display().to_string()).unwrap();
+
+        let expected_name = dir
+            .path()
+            .canonicalize()
+            .unwrap()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap()
+            .to_owned();
+        assert_eq!(info.name, expected_name);
+        assert_eq!(
+            info.root_path,
+            path_to_string(&dir.path().canonicalize().unwrap())
+        );
+    }
+
+    #[test]
+    fn opening_a_project_at_a_missing_path_returns_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("does-not-exist");
+        let project_root = AuthorizedProjectRoot::default();
+
+        let result = open_project_at_for(&project_root, missing.display().to_string());
+
+        assert!(result.is_err());
     }
 
     #[test]
