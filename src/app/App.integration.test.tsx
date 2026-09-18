@@ -55,6 +55,7 @@ function createInMemoryApi(overrides: Partial<NativeApi> = {}): NativeApi {
       if (!file) throw new Error(`unknown file: ${filePath}`)
       file.content = content
     }),
+    closeProject: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }
@@ -127,5 +128,46 @@ describe('App integration journey', () => {
     expect(useWorkspaceStore.getState().tabs[0].isDirty).toBe(true)
     expect(useWorkspaceStore.getState().tabs[0].content).toContain('more text')
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled()
+  })
+
+  it('opens two different projects side by side, each keeping its own tabs when the other is closed', async () => {
+    const user = userEvent.setup()
+    const secondProject: ProjectInfo = { name: 'Blog', rootPath: 'C:\\projects\\blog' }
+    const postNode: FileNode = {
+      kind: 'file',
+      name: 'post.md',
+      path: 'C:\\projects\\blog\\post.md',
+      relativePath: 'post.md',
+    }
+    const api = createInMemoryApi({
+      openProject: vi
+        .fn()
+        .mockResolvedValueOnce(project)
+        .mockResolvedValueOnce(secondProject),
+      listTree: vi
+        .fn()
+        .mockResolvedValueOnce(tree)
+        .mockResolvedValueOnce([postNode]),
+      readFile: vi.fn().mockResolvedValue('# Post'),
+    })
+
+    render(<App api={api} />)
+
+    await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
+    await screen.findByText('README.md')
+
+    await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
+    await screen.findByText('post.md')
+
+    expect(screen.getByText('README.md')).toBeInTheDocument()
+    expect(screen.getByText('post.md')).toBeInTheDocument()
+
+    await user.click(screen.getByText('post.md'))
+    await screen.findByRole('textbox')
+
+    await user.click(screen.getByRole('button', { name: 'Fechar projeto Blog' }))
+
+    expect(screen.queryByText('post.md')).not.toBeInTheDocument()
+    expect(screen.getByText('README.md')).toBeInTheDocument()
   })
 })

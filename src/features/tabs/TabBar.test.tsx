@@ -9,6 +9,7 @@ function makeTab(overrides: Partial<DocumentTab>): DocumentTab {
     name: 'notes.md',
     path: 'C:\\project\\notes.md',
     relativePath: 'notes.md',
+    rootPath: 'C:\\project',
     savedContent: '# Notes',
     content: '# Notes',
     isDirty: false,
