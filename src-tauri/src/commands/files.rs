@@ -105,7 +105,9 @@ impl AuthorizedProjectRoot {
             .projects
             .lock()
             .map_err(|_| "Open project state is unavailable".to_owned())?;
-        projects.remove(&PathBuf::from(root_path));
+        projects
+            .remove(&PathBuf::from(root_path))
+            .ok_or_else(|| "Requested root does not match an open project".to_owned())?;
         Ok(())
     }
 }
@@ -175,7 +177,12 @@ fn list_markdown_tree_for(
     root_path: String,
 ) -> Result<Vec<FileNode>, String> {
     let project = project_root.require(Path::new(&root_path))?;
-    read_markdown_directory(&project.canonical_root, &project.directory, Path::new(""), 0)
+    read_markdown_directory(
+        &project.canonical_root,
+        &project.directory,
+        Path::new(""),
+        0,
+    )
 }
 
 #[tauri::command]
@@ -263,7 +270,10 @@ pub fn close_project(
     close_project_for(project_root.inner(), root_path)
 }
 
-fn close_project_for(project_root: &AuthorizedProjectRoot, root_path: String) -> Result<(), String> {
+fn close_project_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+) -> Result<(), String> {
     project_root.close(&root_path)
 }
 
@@ -517,6 +527,19 @@ mod tests {
             "Requested root does not match the open project"
         );
         assert!(project_root.require(second.path()).is_ok());
+    }
+
+    #[test]
+    fn closing_a_root_that_was_never_authorized_returns_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+
+        let result = close_project_for(&project_root, dir.path().display().to_string());
+
+        assert_eq!(
+            result.unwrap_err(),
+            "Requested root does not match an open project"
+        );
     }
 
     #[test]
