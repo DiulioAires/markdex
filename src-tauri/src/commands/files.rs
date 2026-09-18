@@ -12,6 +12,12 @@ use std::{
 };
 use tauri_plugin_dialog::DialogExt;
 
+/// Maximum directory nesting depth the Markdown tree walk will descend into.
+/// This guards against pathological directory structures causing unbounded
+/// recursion (and stack exhaustion) on the synchronous Tauri command thread.
+/// No realistic project should ever come close to this depth.
+const MAX_TREE_DEPTH: usize = 64;
+
 const IGNORED_DIRECTORY_NAMES: &[&str] = &[
     ".git",
     "node_modules",
@@ -167,7 +173,7 @@ fn list_markdown_tree_for(
     root_path: String,
 ) -> Result<Vec<FileNode>, String> {
     let project = project_root.require(Path::new(&root_path))?;
-    read_markdown_directory(&project.canonical_root, &project.directory, Path::new(""))
+    read_markdown_directory(&project.canonical_root, &project.directory, Path::new(""), 0)
 }
 
 #[tauri::command]
@@ -293,7 +299,15 @@ fn read_markdown_directory(
     root: &Path,
     directory: &Dir,
     relative_directory: &Path,
+    depth: usize,
 ) -> Result<Vec<FileNode>, String> {
+    // Deep branches are silently truncated rather than surfaced as an error:
+    // this is a robustness guard for pathological nesting, not a case users
+    // should see fail in the UI.
+    if depth >= MAX_TREE_DEPTH {
+        return Ok(Vec::new());
+    }
+
     let mut entries = Vec::new();
 
     for entry in directory
@@ -342,6 +356,7 @@ fn read_markdown_directory(
                             format!("Failed to open project directory: {error}")
                         })?,
                         &entry.path,
+                        depth + 1,
                     )?;
                     Ok(FileNode::Directory {
                         name,
@@ -512,5 +527,25 @@ mod tests {
         );
         write_markdown_file_for(&project_root, root_path, file_path, "# After".to_owned()).unwrap();
         assert_eq!(fs::read_to_string(file).unwrap(), "# After");
+    }
+
+    #[test]
+    fn terminates_without_panicking_on_directory_nesting_deeper_than_the_recursion_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut deepest = dir.path().to_path_buf();
+        for i in 0..(MAX_TREE_DEPTH + 20) {
+            deepest = deepest.join(format!("level-{i}"));
+        }
+        fs::create_dir_all(&deepest).unwrap();
+        fs::write(deepest.join("bottom.md"), "# Bottom").unwrap();
+
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+
+        // Must return successfully (not panic, hang, or overflow the stack)
+        // even though the directory nesting exceeds MAX_TREE_DEPTH.
+        let tree = list_markdown_tree_for(&project_root, dir.path().display().to_string()).unwrap();
+
+        assert!(!tree.is_empty());
     }
 }

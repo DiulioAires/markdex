@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 export interface ToastProps {
   message: string
@@ -8,11 +8,22 @@ export interface ToastProps {
 }
 
 export function Toast({ message, onDismiss, autoDismissMs = 6000 }: ToastProps) {
+  // Callers (e.g. App) may pass a fresh `onDismiss` function on every render
+  // that has nothing to do with the toast itself (App re-renders on nearly
+  // every keystroke). Keeping the latest callback in a ref, and leaving it
+  // out of the timer effect's dependency array, means unrelated re-renders
+  // no longer tear down and restart the auto-dismiss timer.
+  const onDismissRef = useRef(onDismiss)
+  useEffect(() => {
+    onDismissRef.current = onDismiss
+  }, [onDismiss])
+
   useEffect(() => {
     if (autoDismissMs <= 0) return
-    const timer = window.setTimeout(onDismiss, autoDismissMs)
+    const timer = window.setTimeout(() => onDismissRef.current(), autoDismissMs)
     return () => window.clearTimeout(timer)
-  }, [message, autoDismissMs, onDismiss])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onDismiss is read via ref intentionally
+  }, [message, autoDismissMs])
 
   return (
     <div className="toast" role="alert">
