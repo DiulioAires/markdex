@@ -6,6 +6,7 @@ export interface NativeApi {
   listTree(rootPath: string): Promise<FileNode[]>
   readFile(rootPath: string, filePath: string): Promise<string>
   writeFile(rootPath: string, filePath: string, content: string): Promise<void>
+  closeProject(rootPath: string): Promise<void>
 }
 
 export const nativeApi: NativeApi = {
@@ -18,4 +19,6 @@ export const nativeApi: NativeApi = {
 
   writeFile: (rootPath, filePath, content) =>
     invoke('write_markdown_file', { rootPath, filePath, content }),
+
+  closeProject: (rootPath) => invoke('close_project', { rootPath }),
 }

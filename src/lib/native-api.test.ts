@@ -41,4 +41,10 @@ describe('nativeApi', () => {
       content: '# Updated',
     })
   })
+
+  it('closeProject invokes close_project with rootPath', async () => {
+    invokeMock.mockResolvedValue(undefined)
+    await nativeApi.closeProject('C:\\work')
+    expect(invokeMock).toHaveBeenCalledWith('close_project', { rootPath: 'C:\\work' })
+  })
 })
