@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import type { DocumentTab, ProjectEntry } from '../../types/project'
 
 export interface TabBarProps {
@@ -55,7 +56,7 @@ export function TabBar({ tabs, activeTabPath, projects, onActivateTab, onCloseTa
                 onCloseTab(tab.path)
               }}
             >
-              ×
+              <X size={12} aria-hidden="true" />
             </button>
           </div>
         )

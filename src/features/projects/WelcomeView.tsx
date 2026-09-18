@@ -1,3 +1,5 @@
+import { FolderOpen } from 'lucide-react'
+
 export interface WelcomeViewProps {
   onOpenProject: () => void
   isOpening: boolean
@@ -17,7 +19,14 @@ export function WelcomeView({ onOpenProject, isOpening }: WelcomeViewProps) {
           onClick={onOpenProject}
           disabled={isOpening}
         >
-          {isOpening ? 'Abrindo projeto…' : 'Abrir projeto'}
+          {isOpening ? (
+            'Abrindo projeto…'
+          ) : (
+            <>
+              <FolderOpen size={16} aria-hidden="true" />
+              Abrir projeto
+            </>
+          )}
         </button>
         <p className="welcome-view__hint">
           Atalho: <kbd>Ctrl + O</kbd>

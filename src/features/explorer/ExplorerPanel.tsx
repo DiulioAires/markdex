@@ -1,3 +1,4 @@
+import { AlertTriangle, FileQuestion, RotateCw, X } from 'lucide-react'
 import { FileTree } from './FileTree'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { FileNode, ProjectEntry } from '../../types/project'
@@ -43,7 +44,7 @@ export function ExplorerPanel({
           title="Atualizar árvore de arquivos"
           aria-label={`Atualizar árvore de ${info.name}`}
         >
-          ⟳
+          <RotateCw size={16} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -52,7 +53,7 @@ export function ExplorerPanel({
           title="Fechar projeto"
           aria-label={`Fechar projeto ${info.name}`}
         >
-          ×
+          <X size={16} aria-hidden="true" />
         </button>
       </div>
       {isExpanded ? (
@@ -65,6 +66,7 @@ export function ExplorerPanel({
             </div>
           ) : treeError ? (
             <EmptyState
+              icon={<AlertTriangle size={24} aria-hidden="true" />}
               title="Não foi possível carregar"
               description={treeError}
               actionLabel="Tentar novamente"
@@ -72,6 +74,7 @@ export function ExplorerPanel({
             />
           ) : tree.length === 0 ? (
             <EmptyState
+              icon={<FileQuestion size={24} aria-hidden="true" />}
               title="Nenhum arquivo Markdown encontrado"
               description="Adicione arquivos .md a esta pasta e atualize a árvore."
               actionLabel="Atualizar"
