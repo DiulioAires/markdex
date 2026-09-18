@@ -11,6 +11,7 @@ pub fn run() {
             commands::files::list_markdown_tree,
             commands::files::read_markdown_file,
             commands::files::write_markdown_file,
+            commands::files::close_project,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

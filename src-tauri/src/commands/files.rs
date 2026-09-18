@@ -6,6 +6,7 @@ use cap_std::{
 };
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::Mutex,
@@ -41,8 +42,9 @@ struct TreeEntry {
     kind: EntryKind,
 }
 
+#[derive(Default)]
 pub struct AuthorizedProjectRoot {
-    project: Mutex<Option<AuthorizedProject>>,
+    projects: Mutex<HashMap<PathBuf, AuthorizedProject>>,
 }
 
 struct AuthorizedProject {
@@ -57,45 +59,36 @@ struct AuthorizedProjectAccess {
     directory: Dir,
 }
 
-impl Default for AuthorizedProjectRoot {
-    fn default() -> Self {
-        Self {
-            project: Mutex::new(None),
-        }
-    }
-}
-
 impl AuthorizedProjectRoot {
     fn authorize(&self, root: &Path) -> Result<PathBuf, String> {
         let path = canonical_project_root(root)?;
         let directory = Dir::open_ambient_dir(&path, ambient_authority())
             .map_err(|error| format!("Failed to open project directory: {error}"))?;
-        let mut project = self
-            .project
+        let mut projects = self
+            .projects
             .lock()
             .map_err(|_| "Open project state is unavailable".to_owned())?;
 
-        *project = Some(AuthorizedProject {
-            path: path.clone(),
-            directory,
-        });
+        projects.insert(
+            path.clone(),
+            AuthorizedProject {
+                path: path.clone(),
+                directory,
+            },
+        );
 
         Ok(path)
     }
 
     fn require(&self, requested_root: &Path) -> Result<AuthorizedProjectAccess, String> {
         let requested_path = canonical_project_root(requested_root)?;
-        let project = self
-            .project
+        let projects = self
+            .projects
             .lock()
             .map_err(|_| "Open project state is unavailable".to_owned())?;
-        let project = project
-            .as_ref()
-            .ok_or_else(|| "No project is open".to_owned())?;
-
-        if requested_path != project.path {
-            return Err("Requested root does not match the open project".to_owned());
-        }
+        let project = projects
+            .get(&requested_path)
+            .ok_or_else(|| "Requested root does not match the open project".to_owned())?;
 
         Ok(AuthorizedProjectAccess {
             canonical_root: project.path.clone(),
@@ -105,6 +98,15 @@ impl AuthorizedProjectRoot {
                 .try_clone()
                 .map_err(|error| format!("Failed to access open project: {error}"))?,
         })
+    }
+
+    fn close(&self, root_path: &str) -> Result<(), String> {
+        let mut projects = self
+            .projects
+            .lock()
+            .map_err(|_| "Open project state is unavailable".to_owned())?;
+        projects.remove(&PathBuf::from(root_path));
+        Ok(())
     }
 }
 
@@ -251,6 +253,18 @@ fn write_markdown_file_for(
 
     file.write_all(content.as_bytes())
         .map_err(|error| format!("Failed to write Markdown file: {error}"))
+}
+
+#[tauri::command]
+pub fn close_project(
+    root_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<(), String> {
+    close_project_for(project_root.inner(), root_path)
+}
+
+fn close_project_for(project_root: &AuthorizedProjectRoot, root_path: String) -> Result<(), String> {
+    project_root.close(&root_path)
 }
 
 pub fn validate_markdown_path(root: &Path, file: &Path) -> Result<(), String> {
@@ -454,6 +468,55 @@ mod tests {
             project_root.require(requested.path()).unwrap_err(),
             "Requested root does not match the open project"
         );
+    }
+
+    #[test]
+    fn authorizes_two_projects_independently() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        fs::write(first.path().join("a.md"), "# A").unwrap();
+        fs::write(second.path().join("b.md"), "# B").unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+
+        project_root.authorize(first.path()).unwrap();
+        project_root.authorize(second.path()).unwrap();
+
+        assert_eq!(
+            read_markdown_file_for(
+                &project_root,
+                first.path().display().to_string(),
+                first.path().join("a.md").display().to_string(),
+            )
+            .unwrap(),
+            "# A"
+        );
+        assert_eq!(
+            read_markdown_file_for(
+                &project_root,
+                second.path().display().to_string(),
+                second.path().join("b.md").display().to_string(),
+            )
+            .unwrap(),
+            "# B"
+        );
+    }
+
+    #[test]
+    fn close_project_removes_only_that_entry() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+
+        let first_root = project_root.authorize(first.path()).unwrap();
+        project_root.authorize(second.path()).unwrap();
+
+        close_project_for(&project_root, first_root.display().to_string()).unwrap();
+
+        assert_eq!(
+            project_root.require(first.path()).unwrap_err(),
+            "Requested root does not match the open project"
+        );
+        assert!(project_root.require(second.path()).is_ok());
     }
 
     #[test]
