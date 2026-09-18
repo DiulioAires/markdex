@@ -6,6 +6,7 @@ import { useProjectController } from './use-project-controller'
 import type { FileNode, ProjectInfo } from '../../types/project'
 
 const project: ProjectInfo = { name: 'Docs', rootPath: 'C:\\work' }
+const otherProject: ProjectInfo = { name: 'Other', rootPath: 'C:\\other' }
 const readme: FileNode = {
   kind: 'file',
   name: 'README.md',
@@ -19,6 +20,7 @@ function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
     listTree: vi.fn().mockResolvedValue([readme]),
     readFile: vi.fn().mockResolvedValue('# Hello'),
     writeFile: vi.fn().mockResolvedValue(undefined),
+    closeProject: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
 }
@@ -26,7 +28,7 @@ function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
 describe('useProjectController', () => {
   beforeEach(() => useWorkspaceStore.getState().reset())
 
-  it('opens a project and stores the project and its tree', async () => {
+  it('opens a project and stores it, expanded, with its tree', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))
 
@@ -34,61 +36,49 @@ describe('useProjectController', () => {
       await result.current.openProject()
     })
 
-    expect(useWorkspaceStore.getState().project).toEqual(project)
+    const [entry] = useWorkspaceStore.getState().projects
+    expect(entry.info).toEqual(project)
+    expect(entry.isExpanded).toBe(true)
+    expect(entry.isLoadingTree).toBe(false)
+    expect(entry.tree).toEqual([readme])
     expect(api.listTree).toHaveBeenCalledWith(project.rootPath)
     expect(result.current.status).toBe('idle')
     expect(result.current.error).toBeNull()
   })
 
-  it('exposes the tree returned by openProject on the hook result', async () => {
+  it('opening the same project twice does not duplicate it or re-fetch its tree', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))
 
     await act(async () => {
       await result.current.openProject()
     })
+    await act(async () => {
+      await result.current.openProject()
+    })
 
-    expect(result.current.tree).toEqual([readme])
+    expect(useWorkspaceStore.getState().projects).toHaveLength(1)
+    expect(api.listTree).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes the tree by re-running listTree for the current project', async () => {
-    const updatedTree: FileNode[] = [
-      readme,
-      {
-        kind: 'file',
-        name: 'CHANGELOG.md',
-        path: 'C:\\work\\CHANGELOG.md',
-        relativePath: 'CHANGELOG.md',
-      },
-    ]
-    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockResolvedValueOnce(updatedTree)
-    const api = createFakeApi({ listTree })
+  it('opening a second, different project keeps the first one untouched', async () => {
+    const api = createFakeApi({
+      openProject: vi
+        .fn()
+        .mockResolvedValueOnce(project)
+        .mockResolvedValueOnce(otherProject),
+    })
     const { result } = renderHook(() => useProjectController(api))
 
     await act(async () => {
       await result.current.openProject()
     })
-    expect(result.current.tree).toEqual([readme])
-
     await act(async () => {
-      await result.current.refreshTree()
+      await result.current.openProject()
     })
 
-    expect(listTree).toHaveBeenCalledTimes(2)
-    expect(listTree).toHaveBeenLastCalledWith(project.rootPath)
-    expect(result.current.tree).toEqual(updatedTree)
-  })
-
-  it('does nothing when refreshTree is called without an open project', async () => {
-    const api = createFakeApi()
-    const { result } = renderHook(() => useProjectController(api))
-
-    await act(async () => {
-      await result.current.refreshTree()
-    })
-
-    expect(api.listTree).not.toHaveBeenCalled()
-    expect(result.current.tree).toEqual([])
+    const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
+    expect(roots).toEqual([project.rootPath, otherProject.rootPath])
   })
 
   it('does not store a project or tree when the user cancels the dialog', async () => {
@@ -99,7 +89,53 @@ describe('useProjectController', () => {
       await result.current.openProject()
     })
 
-    expect(useWorkspaceStore.getState().project).toBeNull()
+    expect(useWorkspaceStore.getState().projects).toEqual([])
+    expect(api.listTree).not.toHaveBeenCalled()
+  })
+
+  it('closeProject calls the native api and removes the project from the store', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+    await act(async () => {
+      await result.current.closeProject(project.rootPath)
+    })
+
+    expect(api.closeProject).toHaveBeenCalledWith(project.rootPath)
+    expect(useWorkspaceStore.getState().projects).toEqual([])
+  })
+
+  it('refreshes the tree for the given project only', async () => {
+    const updatedTree: FileNode[] = [
+      readme,
+      { kind: 'file', name: 'CHANGELOG.md', path: 'C:\\work\\CHANGELOG.md', relativePath: 'CHANGELOG.md' },
+    ]
+    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockResolvedValueOnce(updatedTree)
+    const api = createFakeApi({ listTree })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+    await act(async () => {
+      await result.current.refreshTree(project.rootPath)
+    })
+
+    expect(listTree).toHaveBeenCalledTimes(2)
+    expect(useWorkspaceStore.getState().projects[0].tree).toEqual(updatedTree)
+  })
+
+  it('does nothing when refreshTree targets a project that is not open', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.refreshTree('C:\\unknown')
+    })
+
     expect(api.listTree).not.toHaveBeenCalled()
   })
 
@@ -111,15 +147,16 @@ describe('useProjectController', () => {
       await result.current.openProject()
     })
     await act(async () => {
-      await result.current.openFile(readme)
+      await result.current.openFile(readme, project.rootPath)
     })
     await act(async () => {
-      await result.current.openFile(readme)
+      await result.current.openFile(readme, project.rootPath)
     })
 
     expect(api.readFile).toHaveBeenCalledTimes(1)
     expect(useWorkspaceStore.getState().tabs).toHaveLength(1)
     expect(useWorkspaceStore.getState().tabs[0].content).toBe('# Hello')
+    expect(useWorkspaceStore.getState().tabs[0].rootPath).toBe(project.rootPath)
     expect(useWorkspaceStore.getState().activeTabPath).toBe(readme.path)
   })
 
@@ -135,7 +172,7 @@ describe('useProjectController', () => {
       await result.current.openProject()
     })
     await act(async () => {
-      await result.current.openFile(readme)
+      await result.current.openFile(readme, project.rootPath)
     })
 
     act(() => {
@@ -155,6 +192,7 @@ describe('useProjectController', () => {
     })
 
     expect(useWorkspaceStore.getState().tabs[0].isDirty).toBe(false)
+    expect(api.writeFile).toHaveBeenCalledWith(project.rootPath, readme.path, '# Changed')
   })
 
   it('preserves dirty content and exposes the error text when saving fails', async () => {
@@ -167,7 +205,7 @@ describe('useProjectController', () => {
       await result.current.openProject()
     })
     await act(async () => {
-      await result.current.openFile(readme)
+      await result.current.openFile(readme, project.rootPath)
     })
     act(() => {
       useWorkspaceStore.getState().updateBuffer(readme.path, '# Changed')
