@@ -10,6 +10,14 @@ export interface ProjectInfo {
   rootPath: string
 }
 
+export interface ProjectEntry {
+  info: ProjectInfo
+  tree: FileNode[]
+  isExpanded: boolean
+  isLoadingTree: boolean
+  treeError: string | null
+}
+
 export interface FileNode {
   name: string
   path: string
@@ -22,6 +30,7 @@ export interface TabFile {
   name: string
   path: string
   relativePath: string
+  rootPath: string
 }
 
 export interface DocumentTab extends TabFile {

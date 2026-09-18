@@ -2,17 +2,23 @@ import { create } from 'zustand'
 import type {
   CursorPosition,
   DocumentTab,
-  ProjectInfo,
+  FileNode,
+  ProjectEntry,
   TabFile,
   ViewMode,
 } from '../types/project'
 
 interface WorkspaceState {
-  project: ProjectInfo | null
+  projects: ProjectEntry[]
   tabs: DocumentTab[]
   activeTabPath: string | null
   viewMode: ViewMode
-  setProject: (project: ProjectInfo | null) => void
+  addProject: (entry: ProjectEntry) => void
+  removeProject: (rootPath: string) => void
+  toggleProjectExpanded: (rootPath: string) => void
+  setProjectTree: (rootPath: string, tree: FileNode[]) => void
+  setProjectTreeLoading: (rootPath: string, isLoading: boolean) => void
+  setProjectTreeError: (rootPath: string, error: string | null) => void
   openTab: (file: TabFile, content: string) => void
   activateTab: (path: string) => void
   updateBuffer: (path: string, content: string) => void
@@ -24,16 +30,60 @@ interface WorkspaceState {
 }
 
 const initialState = {
-  project: null,
-  tabs: [],
-  activeTabPath: null,
+  projects: [] as ProjectEntry[],
+  tabs: [] as DocumentTab[],
+  activeTabPath: null as string | null,
   viewMode: 'editor' as ViewMode,
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set) => ({
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   ...initialState,
 
-  setProject: (project) => set({ project }),
+  addProject: (entry) =>
+    set((state) => {
+      const alreadyOpen = state.projects.some((project) => project.info.rootPath === entry.info.rootPath)
+      return alreadyOpen ? state : { projects: [...state.projects, entry] }
+    }),
+
+  removeProject: (rootPath) => {
+    get()
+      .tabs.filter((tab) => tab.rootPath === rootPath)
+      .forEach((tab) => get().closeTab(tab.path))
+
+    set((state) => ({
+      projects: state.projects.filter((project) => project.info.rootPath !== rootPath),
+    }))
+  },
+
+  toggleProjectExpanded: (rootPath) =>
+    set((state) => ({
+      projects: state.projects.map((project) =>
+        project.info.rootPath === rootPath
+          ? { ...project, isExpanded: !project.isExpanded }
+          : project,
+      ),
+    })),
+
+  setProjectTree: (rootPath, tree) =>
+    set((state) => ({
+      projects: state.projects.map((project) =>
+        project.info.rootPath === rootPath ? { ...project, tree } : project,
+      ),
+    })),
+
+  setProjectTreeLoading: (rootPath, isLoadingTree) =>
+    set((state) => ({
+      projects: state.projects.map((project) =>
+        project.info.rootPath === rootPath ? { ...project, isLoadingTree } : project,
+      ),
+    })),
+
+  setProjectTreeError: (rootPath, treeError) =>
+    set((state) => ({
+      projects: state.projects.map((project) =>
+        project.info.rootPath === rootPath ? { ...project, treeError } : project,
+      ),
+    })),
 
   openTab: (file, content) =>
     set((state) => {
@@ -98,5 +148,5 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
   setViewMode: (viewMode) => set({ viewMode }),
 
-  reset: () => set({ ...initialState, tabs: [] }),
+  reset: () => set({ ...initialState, projects: [], tabs: [] }),
 }))
