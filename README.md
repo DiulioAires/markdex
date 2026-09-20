@@ -7,6 +7,12 @@ Open one or more local folders, browse their Markdown files side by side,
 edit with a CodeMirror-based editor, preview rendered Markdown, and save
 back to disk — all in a small, focused, offline-first app.
 
+## Download
+
+The current release is [Markdex v1.0.1](https://github.com/DiulioAires/markdex/releases/tag/v1.0.1).
+Windows users can install it with either the [NSIS installer](https://github.com/DiulioAires/markdex/releases/download/v1.0.1/Markdex_1.0.1_x64-setup.exe)
+or the [MSI package](https://github.com/DiulioAires/markdex/releases/download/v1.0.1/Markdex_1.0.1_x64_en-US.msi).
+
 ## Features
 
 - **Multiple projects at once.** Open several folders side by side in the
@@ -26,6 +32,8 @@ back to disk — all in a small, focused, offline-first app.
 - **Autosave and external synchronization.** Dirty files are saved after one
   second without typing, clean tabs reload changes made by other programs,
   and concurrent edits are preserved as conflicts instead of being overwritten.
+  When a conflict is detected, Markdex keeps the local buffer and waits for a
+  manual save confirmation before writing over the external version.
 
 ## Keyboard shortcuts
 
@@ -121,7 +129,8 @@ they were left out on purpose to keep Markdex small and predictable:
 - **No AI features** (assistants, summarization, generation, etc.).
 - **No theme switching.** Markdex is dark-themed by design.
 
-These may be considered for future releases but are not part of 1.0.
+These may be considered for future releases but are not part of the current
+1.0.1 release.
 
 ## License
 
