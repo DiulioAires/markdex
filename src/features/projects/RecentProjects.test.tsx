@@ -69,4 +69,39 @@ describe('RecentProjects', () => {
     expect(onOpen).not.toHaveBeenCalled()
     expect(mockedRemoveRecentProject).toHaveBeenCalledWith('/home/user/docs')
   })
+
+  it('is keyboard-operable: focusing the row and pressing Enter or Space calls onOpen', async () => {
+    mockedGetRecentProjects.mockReturnValue([
+      { name: 'Docs', rootPath: '/home/user/docs', lastOpenedAt: 1 },
+    ])
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+
+    render(<RecentProjects onOpen={onOpen} />)
+    const row = screen.getByText('Docs').closest('li')
+    expect(row).toHaveAttribute('role', 'button')
+    expect(row).toHaveAttribute('tabIndex', '0')
+    ;(row as HTMLLIElement).focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+
+    expect(onOpen).toHaveBeenCalledTimes(2)
+    expect(onOpen).toHaveBeenCalledWith('/home/user/docs')
+  })
+
+  it('pressing Enter on the remove button only removes, it does not also call onOpen', async () => {
+    mockedGetRecentProjects.mockReturnValue([
+      { name: 'Docs', rootPath: '/home/user/docs', lastOpenedAt: 1 },
+    ])
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+
+    render(<RecentProjects onOpen={onOpen} />)
+    const removeButton = screen.getByRole('button', { name: 'Remover Docs dos recentes' })
+    removeButton.focus()
+    await user.keyboard('{Enter}')
+
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(mockedRemoveRecentProject).toHaveBeenCalledWith('/home/user/docs')
+  })
 })

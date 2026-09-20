@@ -1,9 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WelcomeView } from './WelcomeView'
+import { addRecentProject } from './recent-projects'
 
 describe('WelcomeView', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   it('shows the product name, value proposition and keyboard hint', () => {
     render(<WelcomeView onOpenProject={() => {}} isOpening={false} onOpenRecentProject={() => {}} />)
 
@@ -29,5 +34,24 @@ describe('WelcomeView', () => {
 
     const button = screen.getByRole('button', { name: /abrindo projeto/i })
     expect(button).toBeDisabled()
+  })
+
+  it('clicking a real recent project row calls onOpenRecentProject with its rootPath', async () => {
+    addRecentProject({ name: 'Docs', rootPath: '/home/user/docs' })
+    const onOpenRecentProject = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <WelcomeView
+        onOpenProject={() => {}}
+        isOpening={false}
+        onOpenRecentProject={onOpenRecentProject}
+      />,
+    )
+
+    await user.click(screen.getByText('Docs'))
+
+    expect(onOpenRecentProject).toHaveBeenCalledTimes(1)
+    expect(onOpenRecentProject).toHaveBeenCalledWith('/home/user/docs')
   })
 })

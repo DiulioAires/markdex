@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { nativeApi as defaultNativeApi, type NativeApi } from '../../lib/native-api'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import type { FileNode, TabFile } from '../../types/project'
+import type { FileNode, ProjectInfo, TabFile } from '../../types/project'
 
 export type ProjectControllerStatus = 'idle' | 'opening-project' | 'opening-file' | 'saving'
 
@@ -27,15 +27,8 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   const activateTab = useWorkspaceStore((state) => state.activateTab)
   const markSaved = useWorkspaceStore((state) => state.markSaved)
 
-  const openProject = useCallback(async () => {
-    setStatus('opening-project')
-    setError(null)
-    try {
-      const info = await api.openProject()
-      if (!info) {
-        return
-      }
-
+  const registerProject = useCallback(
+    async (info: ProjectInfo) => {
       const existing = useWorkspaceStore
         .getState()
         .projects.find((entry) => entry.info.rootPath === info.rootPath)
@@ -62,12 +55,41 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
       } finally {
         setProjectTreeLoading(info.rootPath, false)
       }
+    },
+    [api, addProject, toggleProjectExpanded, setProjectTree, setProjectTreeError, setProjectTreeLoading],
+  )
+
+  const openProject = useCallback(async () => {
+    setStatus('opening-project')
+    setError(null)
+    try {
+      const info = await api.openProject()
+      if (!info) {
+        return
+      }
+      await registerProject(info)
     } catch (caughtError) {
       setError(errorMessage(caughtError))
     } finally {
       setStatus('idle')
     }
-  }, [api, addProject, toggleProjectExpanded, setProjectTree, setProjectTreeError, setProjectTreeLoading])
+  }, [api, registerProject])
+
+  const openRecentProject = useCallback(
+    async (rootPath: string) => {
+      setStatus('opening-project')
+      setError(null)
+      try {
+        const info = await api.openProjectAt(rootPath)
+        await registerProject(info)
+      } catch (caughtError) {
+        setError(errorMessage(caughtError))
+      } finally {
+        setStatus('idle')
+      }
+    },
+    [api, registerProject],
+  )
 
   const closeProject = useCallback(
     async (rootPath: string) => {
@@ -150,5 +172,14 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     }
   }, [api, markSaved])
 
-  return { openProject, openFile, closeProject, saveActiveFile, refreshTree, status, error }
+  return {
+    openProject,
+    openRecentProject,
+    openFile,
+    closeProject,
+    saveActiveFile,
+    refreshTree,
+    status,
+    error,
+  }
 }

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { useWorkspaceStore } from '../stores/workspace-store'
+import { addRecentProject } from '../features/projects/recent-projects'
 import type { NativeApi } from '../lib/native-api'
 import type { FileNode, ProjectInfo } from '../types/project'
 
@@ -44,6 +45,7 @@ function createInMemoryApi(overrides: Partial<NativeApi> = {}): NativeApi {
 
   return {
     openProject: vi.fn().mockResolvedValue(project),
+    openProjectAt: vi.fn().mockResolvedValue(project),
     listTree: vi.fn().mockResolvedValue(tree),
     readFile: vi.fn(async (_rootPath: string, filePath: string) => {
       const file = files.get(filePath)
@@ -63,6 +65,22 @@ function createInMemoryApi(overrides: Partial<NativeApi> = {}): NativeApi {
 describe('App integration journey', () => {
   beforeEach(() => {
     useWorkspaceStore.getState().reset()
+    localStorage.clear()
+  })
+
+  it('clicking a recent project on the welcome view opens it via openProjectAt', async () => {
+    const user = userEvent.setup()
+    const api = createInMemoryApi()
+    addRecentProject({ name: project.name, rootPath: project.rootPath })
+
+    render(<App api={api} />)
+
+    await user.click(screen.getByText(project.name))
+
+    await waitFor(() => expect(api.openProjectAt).toHaveBeenCalledWith(project.rootPath))
+    await waitFor(() => expect(api.listTree).toHaveBeenCalledWith(project.rootPath))
+    expect(await screen.findByText('docs')).toBeInTheDocument()
+    expect(useWorkspaceStore.getState().projects[0].info).toEqual(project)
   })
 
   it('opens a project, edits a nested file, switches to preview, and saves', async () => {

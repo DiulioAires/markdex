@@ -13,8 +13,16 @@ export interface AppProps {
 }
 
 export function App({ api }: AppProps = {}) {
-  const { openProject, openFile, closeProject, saveActiveFile, refreshTree, status, error } =
-    useProjectController(api)
+  const {
+    openProject,
+    openRecentProject,
+    openFile,
+    closeProject,
+    saveActiveFile,
+    refreshTree,
+    status,
+    error,
+  } = useProjectController(api)
   const projects = useWorkspaceStore((state) => state.projects)
   const tabs = useWorkspaceStore((state) => state.tabs)
   const activeTabPath = useWorkspaceStore((state) => state.activeTabPath)
@@ -56,7 +64,13 @@ export function App({ api }: AppProps = {}) {
   }, [openProject, saveActiveFile, isOpening])
 
   if (projects.length === 0) {
-    return <WelcomeView onOpenProject={() => void openProject()} isOpening={isOpening} />
+    return (
+      <WelcomeView
+        onOpenProject={() => void openProject()}
+        isOpening={isOpening}
+        onOpenRecentProject={(rootPath) => void openRecentProject(rootPath)}
+      />
+    )
   }
 
   return (

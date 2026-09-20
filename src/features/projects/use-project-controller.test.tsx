@@ -17,6 +17,7 @@ const readme: FileNode = {
 function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
   return {
     openProject: vi.fn().mockResolvedValue(project),
+    openProjectAt: vi.fn().mockResolvedValue(project),
     listTree: vi.fn().mockResolvedValue([readme]),
     readFile: vi.fn().mockResolvedValue('# Hello'),
     writeFile: vi.fn().mockResolvedValue(undefined),
@@ -91,6 +92,54 @@ describe('useProjectController', () => {
 
     expect(useWorkspaceStore.getState().projects).toEqual([])
     expect(api.listTree).not.toHaveBeenCalled()
+  })
+
+  it('openRecentProject opens a project by rootPath and stores it, expanded, with its tree', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openRecentProject(project.rootPath)
+    })
+
+    expect(api.openProjectAt).toHaveBeenCalledWith(project.rootPath)
+    const [entry] = useWorkspaceStore.getState().projects
+    expect(entry.info).toEqual(project)
+    expect(entry.isExpanded).toBe(true)
+    expect(entry.tree).toEqual([readme])
+    expect(api.listTree).toHaveBeenCalledWith(project.rootPath)
+    expect(result.current.status).toBe('idle')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('opening the same recent project twice does not duplicate it or re-fetch its tree', async () => {
+    const api = createFakeApi()
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openRecentProject(project.rootPath)
+    })
+    await act(async () => {
+      await result.current.openRecentProject(project.rootPath)
+    })
+
+    expect(useWorkspaceStore.getState().projects).toHaveLength(1)
+    expect(api.listTree).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes the error when openProjectAt is rejected and does not store a project', async () => {
+    const api = createFakeApi({
+      openProjectAt: vi.fn().mockRejectedValue(new Error('pasta não encontrada')),
+    })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openRecentProject('C:\\missing')
+    })
+
+    expect(useWorkspaceStore.getState().projects).toEqual([])
+    expect(result.current.error).toBe('pasta não encontrada')
+    expect(result.current.status).toBe('idle')
   })
 
   it('closeProject calls the native api and removes the project from the store', async () => {

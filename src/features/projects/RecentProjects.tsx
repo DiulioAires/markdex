@@ -24,7 +24,16 @@ export function RecentProjects({ onOpen }: RecentProjectsProps) {
           <li
             key={project.rootPath}
             className="recent-projects__item"
+            role="button"
+            tabIndex={0}
             onClick={() => onOpen(project.rootPath)}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onOpen(project.rootPath)
+              }
+            }}
           >
             <Folder size={16} aria-hidden="true" />
             <span className="recent-projects__name">{project.name}</span>
