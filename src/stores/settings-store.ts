@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type EditorFontSize = 'small' | 'medium' | 'large'
+export type EditorFontSize = 'small' | 'medium' | 'large'
 
 interface SettingsState {
   editorFontSize: EditorFontSize
