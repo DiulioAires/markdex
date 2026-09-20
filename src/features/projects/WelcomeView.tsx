@@ -1,11 +1,13 @@
 import { FolderOpen } from 'lucide-react'
+import { RecentProjects } from './RecentProjects'
 
 export interface WelcomeViewProps {
   onOpenProject: () => void
   isOpening: boolean
+  onOpenRecentProject: (rootPath: string) => void
 }
 
-export function WelcomeView({ onOpenProject, isOpening }: WelcomeViewProps) {
+export function WelcomeView({ onOpenProject, isOpening, onOpenRecentProject }: WelcomeViewProps) {
   return (
     <section className="welcome-view" aria-label="Tela inicial">
       <div className="welcome-view__card">
@@ -32,6 +34,7 @@ export function WelcomeView({ onOpenProject, isOpening }: WelcomeViewProps) {
           Atalho: <kbd>Ctrl + O</kbd>
         </p>
       </div>
+      <RecentProjects onOpen={onOpenRecentProject} />
     </section>
   )
 }

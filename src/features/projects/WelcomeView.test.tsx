@@ -5,7 +5,7 @@ import { WelcomeView } from './WelcomeView'
 
 describe('WelcomeView', () => {
   it('shows the product name, value proposition and keyboard hint', () => {
-    render(<WelcomeView onOpenProject={() => {}} isOpening={false} />)
+    render(<WelcomeView onOpenProject={() => {}} isOpening={false} onOpenRecentProject={() => {}} />)
 
     expect(screen.getByText('MD Project Manager')).toBeInTheDocument()
     expect(
@@ -17,7 +17,7 @@ describe('WelcomeView', () => {
   it('calls onOpenProject exactly once when the button is pressed', async () => {
     const user = userEvent.setup()
     const onOpenProject = vi.fn()
-    render(<WelcomeView onOpenProject={onOpenProject} isOpening={false} />)
+    render(<WelcomeView onOpenProject={onOpenProject} isOpening={false} onOpenRecentProject={() => {}} />)
 
     await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
 
@@ -25,7 +25,7 @@ describe('WelcomeView', () => {
   })
 
   it('shows a disabled loading label while isOpening is true', () => {
-    render(<WelcomeView onOpenProject={() => {}} isOpening={true} />)
+    render(<WelcomeView onOpenProject={() => {}} isOpening={true} onOpenRecentProject={() => {}} />)
 
     const button = screen.getByRole('button', { name: /abrindo projeto/i })
     expect(button).toBeDisabled()
