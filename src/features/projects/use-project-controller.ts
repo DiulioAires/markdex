@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { nativeApi as defaultNativeApi, type NativeApi } from '../../lib/native-api'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { addRecentProject, removeRecentProject } from './recent-projects'
 import type { FileNode, ProjectInfo, TabFile } from '../../types/project'
 
 export type ProjectControllerStatus = 'idle' | 'opening-project' | 'opening-file' | 'saving'
@@ -29,6 +30,8 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
 
   const registerProject = useCallback(
     async (info: ProjectInfo) => {
+      addRecentProject({ name: info.name, rootPath: info.rootPath })
+
       const existing = useWorkspaceStore
         .getState()
         .projects.find((entry) => entry.info.rootPath === info.rootPath)
@@ -75,7 +78,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     }
   }, [api, registerProject])
 
-  const openRecentProject = useCallback(
+  const openProjectAt = useCallback(
     async (rootPath: string) => {
       setStatus('opening-project')
       setError(null)
@@ -84,6 +87,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
         await registerProject(info)
       } catch (caughtError) {
         setError(errorMessage(caughtError))
+        removeRecentProject(rootPath)
       } finally {
         setStatus('idle')
       }
@@ -174,7 +178,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
 
   return {
     openProject,
-    openRecentProject,
+    openProjectAt,
     openFile,
     closeProject,
     saveActiveFile,

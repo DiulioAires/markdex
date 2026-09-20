@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { NativeApi } from '../../lib/native-api'
 import { useProjectController } from './use-project-controller'
+import { getRecentProjects } from './recent-projects'
 import type { FileNode, ProjectInfo } from '../../types/project'
 
 const project: ProjectInfo = { name: 'Docs', rootPath: 'C:\\work' }
@@ -27,7 +28,10 @@ function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
 }
 
 describe('useProjectController', () => {
-  beforeEach(() => useWorkspaceStore.getState().reset())
+  beforeEach(() => {
+    useWorkspaceStore.getState().reset()
+    localStorage.clear()
+  })
 
   it('opens a project and stores it, expanded, with its tree', async () => {
     const api = createFakeApi()
@@ -94,12 +98,12 @@ describe('useProjectController', () => {
     expect(api.listTree).not.toHaveBeenCalled()
   })
 
-  it('openRecentProject opens a project by rootPath and stores it, expanded, with its tree', async () => {
+  it('openProjectAt opens a project by rootPath and stores it, expanded, with its tree', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))
 
     await act(async () => {
-      await result.current.openRecentProject(project.rootPath)
+      await result.current.openProjectAt(project.rootPath)
     })
 
     expect(api.openProjectAt).toHaveBeenCalledWith(project.rootPath)
@@ -112,15 +116,15 @@ describe('useProjectController', () => {
     expect(result.current.error).toBeNull()
   })
 
-  it('opening the same recent project twice does not duplicate it or re-fetch its tree', async () => {
+  it('opening the same project twice via openProjectAt does not duplicate it or re-fetch its tree', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))
 
     await act(async () => {
-      await result.current.openRecentProject(project.rootPath)
+      await result.current.openProjectAt(project.rootPath)
     })
     await act(async () => {
-      await result.current.openRecentProject(project.rootPath)
+      await result.current.openProjectAt(project.rootPath)
     })
 
     expect(useWorkspaceStore.getState().projects).toHaveLength(1)
@@ -134,12 +138,45 @@ describe('useProjectController', () => {
     const { result } = renderHook(() => useProjectController(api))
 
     await act(async () => {
-      await result.current.openRecentProject('C:\\missing')
+      await result.current.openProjectAt('C:\\missing')
     })
 
     expect(useWorkspaceStore.getState().projects).toEqual([])
     expect(result.current.error).toBe('pasta não encontrada')
     expect(result.current.status).toBe('idle')
+  })
+
+  it('adds the project to recents when opened via openProject or openProjectAt', async () => {
+    const api = createFakeApi({ openProjectAt: vi.fn().mockResolvedValue(otherProject) })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+
+    expect(getRecentProjects().map((entry) => entry.rootPath)).toEqual([project.rootPath])
+
+    await act(async () => {
+      await result.current.openProjectAt(otherProject.rootPath)
+    })
+
+    expect(getRecentProjects().map((entry) => entry.rootPath)).toEqual([
+      otherProject.rootPath,
+      project.rootPath,
+    ])
+  })
+
+  it('removes the stale recent entry when openProjectAt fails', async () => {
+    const api = createFakeApi({
+      openProjectAt: vi.fn().mockRejectedValue(new Error('pasta não encontrada')),
+    })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProjectAt('C:\\missing')
+    })
+
+    expect(getRecentProjects()).toEqual([])
   })
 
   it('closeProject calls the native api and removes the project from the store', async () => {

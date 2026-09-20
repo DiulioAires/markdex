@@ -26,6 +26,10 @@ export interface AppShellProps {
   explorerSlot: ReactNode
   workspaceSlot: ReactNode
   toastSlot?: ReactNode
+  settingsSlot?: ReactNode
+  commandPaletteSlot?: ReactNode
+  onOpenCommandPalette?: () => void
+  onOpenSettings?: () => void
 }
 
 export function AppShell({
@@ -42,6 +46,10 @@ export function AppShell({
   explorerSlot,
   workspaceSlot,
   toastSlot,
+  settingsSlot,
+  commandPaletteSlot,
+  onOpenCommandPalette,
+  onOpenSettings,
 }: AppShellProps) {
   const [explorerWidth, setExplorerWidth] = useState(DEFAULT_EXPLORER_WIDTH)
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -85,6 +93,8 @@ export function AppShell({
         onSelectViewMode={onSelectViewMode}
         onOpenProject={onOpenProject}
         isOpening={isOpening}
+        onOpenCommandPalette={onOpenCommandPalette}
+        onOpenSettings={onOpenSettings}
       />
       <div className="app-shell__body">
         <aside
@@ -119,6 +129,8 @@ export function AppShell({
         onSave={onSave}
       />
       {toastSlot}
+      {settingsSlot}
+      {commandPaletteSlot}
     </div>
   )
 }
