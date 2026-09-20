@@ -11,7 +11,7 @@ export function WelcomeView({ onOpenProject, isOpening, onOpenRecentProject }: W
   return (
     <section className="welcome-view" aria-label="Tela inicial">
       <div className="welcome-view__card">
-        <h1 className="welcome-view__title">MD Project Manager</h1>
+        <h1 className="welcome-view__title">Markdex</h1>
         <p className="welcome-view__tagline">
           Abra uma pasta local para navegar, editar e visualizar seus arquivos Markdown.
         </p>

@@ -74,7 +74,7 @@ describe('SettingsPanel', () => {
     const onClose = vi.fn()
     render(<SettingsPanel onClose={onClose} />)
 
-    await user.click(screen.getByText('MD Project Manager'))
+    await user.click(screen.getByText('Markdex'))
 
     expect(onClose).not.toHaveBeenCalled()
   })

@@ -1,9 +1,39 @@
-# MD Project Manager
+# Markdex
 
-A small desktop Markdown project manager built with Tauri, React and
-TypeScript. Open a local folder, browse its Markdown files in a
-VS Code-inspired shell, edit with CodeMirror, preview rendered Markdown,
-and save back to disk.
+![Markdex](Markdex.png)
+
+A desktop Markdown project manager built with Tauri, React and TypeScript.
+Open one or more local folders, browse their Markdown files side by side,
+edit with a CodeMirror-based editor, preview rendered Markdown, and save
+back to disk — all in a small, focused, offline-first app.
+
+## Features
+
+- **Multiple projects at once.** Open several folders side by side in the
+  explorer, each as its own collapsible, closable section. Tabs from every
+  open project share a single tab bar.
+- **Tabbed Markdown editing.** Open any number of files in tabs, edit with
+  CodeMirror (syntax highlighting, line numbers, search).
+- **Live preview.** Render GitHub-flavored Markdown (tables, task lists,
+  etc.) in an Editor, Preview, or side-by-side Split view.
+- **Command palette.** Press `Ctrl+Shift+P` to search and run any action —
+  open a project, save, switch view mode, open settings, close the current
+  tab — without leaving the keyboard.
+- **Recent projects.** The welcome screen remembers the last folders you
+  opened, so you can reopen one with a click instead of the folder picker.
+- **Settings.** Adjust the editor's font size and see every keyboard
+  shortcut in one place.
+- **Explicit, predictable saving.** Nothing is written to disk until you
+  ask for it (`Ctrl+S` or the Save button) — see [Current limitations](#current-limitations)
+  for what else is intentionally left out.
+
+## Keyboard shortcuts
+
+| Shortcut         | Action                  |
+| ---------------- | ------------------------ |
+| `Ctrl+O`         | Open a project folder    |
+| `Ctrl+S`         | Save the active file     |
+| `Ctrl+Shift+P`   | Open the command palette |
 
 ## Prerequisites
 
@@ -28,7 +58,7 @@ npm install
 ## Development
 
 Run the app in development mode (starts the Vite dev server and the Tauri
-window):
+window, with hot reload):
 
 ```bash
 npm run tauri dev
@@ -42,8 +72,8 @@ Frontend unit and integration tests (Vitest + Testing Library):
 npm run test:run
 ```
 
-Rust unit tests for the filesystem commands (path/extension validation,
-tree listing, read/write):
+Rust unit tests (path/extension validation, multi-root authorization, tree
+listing, read/write):
 
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml
@@ -51,33 +81,35 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ## Building
 
-Frontend production build (type-checks then builds with Vite):
+To produce an installable desktop build (`.msi`/`.exe` on Windows, `.deb`/
+`.AppImage` on Linux, `.dmg`/`.app` on macOS), run:
+
+```bash
+npm run tauri build
+```
+
+This type-checks and bundles the frontend, compiles the Rust backend in
+release mode, and packages the platform-appropriate installer(s) under
+`src-tauri/target/release/bundle/`.
+
+To only build the frontend bundle (used internally by `tauri build`, and
+useful on its own to type-check and catch build errors quickly):
 
 ```bash
 npm run build
 ```
 
-Rust checks used in this project's verification pass:
+Rust-only checks:
 
 ```bash
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-## Scope
-
-MD Project Manager is a minimal viewer/editor for a folder of Markdown
-files:
-
-- Open a local folder and browse its Markdown files in a tree.
-- Open multiple files in tabs, edit with a CodeMirror-based editor.
-- Preview rendered Markdown (GitHub-flavored) side-by-side or full pane.
-- Save changes back to disk explicitly (button or `Ctrl+S`).
-
 ## Current limitations
 
-The following are intentionally **out of scope** for this milestone and
-are not silently missing — they were left out on purpose:
+The following are intentionally **out of scope**, not silently missing —
+they were left out on purpose to keep Markdex small and predictable:
 
 - **No autosave.** Changes are only written to disk when you explicitly
   save.
@@ -89,6 +121,10 @@ are not silently missing — they were left out on purpose:
 - **No Mermaid or other diagram rendering** in the Markdown preview.
 - **No export** (PDF, HTML, etc.).
 - **No AI features** (assistants, summarization, generation, etc.).
+- **No theme switching.** Markdex is dark-themed by design.
 
-These may be considered for future milestones but are not part of this
-MVP.
+These may be considered for future releases but are not part of 1.0.
+
+## License
+
+[MIT](LICENSE)

@@ -108,8 +108,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         <section className="settings-panel__section">
           <h3 className="settings-panel__section-title">Sobre</h3>
-          <p className="settings-panel__about-name">MD Project Manager</p>
-          <p className="settings-panel__about-version">Versão 0.1.0</p>
+          <p className="settings-panel__about-name">Markdex</p>
+          <p className="settings-panel__about-version">Versão 1.0.0</p>
           <p className="settings-panel__about-description">
             Um editor para organizar e escrever os arquivos Markdown de um projeto local, sem
             sincronização automática ou integrações externas.

@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'md-project-manager:recent-projects'
+const STORAGE_KEY = 'markdex:recent-projects'
 const MAX_ENTRIES = 8
 
 export interface RecentProject {

@@ -12,7 +12,7 @@ describe('WelcomeView', () => {
   it('shows the product name, value proposition and keyboard hint', () => {
     render(<WelcomeView onOpenProject={() => {}} isOpening={false} onOpenRecentProject={() => {}} />)
 
-    expect(screen.getByText('MD Project Manager')).toBeInTheDocument()
+    expect(screen.getByText('Markdex')).toBeInTheDocument()
     expect(
       screen.getByText(/abra uma pasta local para navegar, editar e visualizar/i),
     ).toBeInTheDocument()

@@ -26,7 +26,7 @@ describe('settings store', () => {
 
   it('persists editor font size to localStorage', () => {
     useSettingsStore.getState().setEditorFontSize('large')
-    const stored = localStorage.getItem('md-project-manager:settings')
+    const stored = localStorage.getItem('markdex:settings')
     expect(stored).toBeTruthy()
     expect(JSON.parse(stored!).state.editorFontSize).toBe('large')
   })

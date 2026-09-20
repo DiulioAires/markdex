@@ -15,7 +15,7 @@ export const useSettingsStore = create<SettingsState>()(
       setEditorFontSize: (size) => set({ editorFontSize: size }),
     }),
     {
-      name: 'md-project-manager:settings',
+      name: 'markdex:settings',
     },
   ),
 )
