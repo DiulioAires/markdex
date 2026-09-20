@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { NativeApi } from '../../lib/native-api'
 import { useProjectController } from './use-project-controller'
-import { getRecentProjects } from './recent-projects'
+import { addRecentProject, getRecentProjects } from './recent-projects'
 import type { FileNode, ProjectInfo } from '../../types/project'
 
 const project: ProjectInfo = { name: 'Docs', rootPath: 'C:\\work' }
@@ -167,6 +167,16 @@ describe('useProjectController', () => {
   })
 
   it('removes the stale recent entry when openProjectAt fails', async () => {
+    // Seed a pre-existing recent entry for the path that is about to fail, plus another
+    // unrelated one, so the assertion below actually exercises removeRecentProject instead of
+    // trivially passing on an already-empty list.
+    addRecentProject({ name: 'Missing', rootPath: 'C:\\missing' })
+    addRecentProject({ name: 'Other', rootPath: otherProject.rootPath })
+    expect(getRecentProjects().map((entry) => entry.rootPath)).toEqual([
+      otherProject.rootPath,
+      'C:\\missing',
+    ])
+
     const api = createFakeApi({
       openProjectAt: vi.fn().mockRejectedValue(new Error('pasta não encontrada')),
     })
@@ -176,7 +186,7 @@ describe('useProjectController', () => {
       await result.current.openProjectAt('C:\\missing')
     })
 
-    expect(getRecentProjects()).toEqual([])
+    expect(getRecentProjects().map((entry) => entry.rootPath)).toEqual([otherProject.rootPath])
   })
 
   it('closeProject calls the native api and removes the project from the store', async () => {

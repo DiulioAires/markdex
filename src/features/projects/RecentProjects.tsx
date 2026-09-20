@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Clock, Folder, X } from 'lucide-react'
-import { getRecentProjects, removeRecentProject, type RecentProject } from './recent-projects'
+import {
+  getRecentProjects,
+  removeRecentProject,
+  subscribeToRecentProjects,
+  type RecentProject,
+} from './recent-projects'
 
 export interface RecentProjectsProps {
   onOpen: (rootPath: string) => void
@@ -8,6 +13,12 @@ export interface RecentProjectsProps {
 
 export function RecentProjects({ onOpen }: RecentProjectsProps) {
   const [projects, setProjects] = useState<RecentProject[]>(() => getRecentProjects())
+
+  // Keep the list in sync with storage writes that happen outside this component, e.g. the
+  // project controller removing a stale entry after openProjectAt fails.
+  useEffect(() => {
+    return subscribeToRecentProjects(() => setProjects(getRecentProjects()))
+  }, [])
 
   if (projects.length === 0) {
     return null
@@ -45,7 +56,6 @@ export function RecentProjects({ onOpen }: RecentProjectsProps) {
               onClick={(event) => {
                 event.stopPropagation()
                 removeRecentProject(project.rootPath)
-                setProjects((current) => current.filter((entry) => entry.rootPath !== project.rootPath))
               }}
             >
               <X size={14} aria-hidden="true" />

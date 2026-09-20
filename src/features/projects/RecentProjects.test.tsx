@@ -1,21 +1,25 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecentProjects } from './RecentProjects'
-import { getRecentProjects, removeRecentProject } from './recent-projects'
+import { getRecentProjects, removeRecentProject, subscribeToRecentProjects } from './recent-projects'
 
 vi.mock('./recent-projects', () => ({
   getRecentProjects: vi.fn(),
   removeRecentProject: vi.fn(),
+  subscribeToRecentProjects: vi.fn(() => () => {}),
 }))
 
 const mockedGetRecentProjects = vi.mocked(getRecentProjects)
 const mockedRemoveRecentProject = vi.mocked(removeRecentProject)
+const mockedSubscribeToRecentProjects = vi.mocked(subscribeToRecentProjects)
 
 describe('RecentProjects', () => {
   beforeEach(() => {
     mockedGetRecentProjects.mockReset()
     mockedRemoveRecentProject.mockReset()
+    mockedSubscribeToRecentProjects.mockReset()
+    mockedSubscribeToRecentProjects.mockReturnValue(() => {})
   })
 
   it('renders nothing when there are no recent projects', () => {
@@ -103,5 +107,46 @@ describe('RecentProjects', () => {
 
     expect(onOpen).not.toHaveBeenCalled()
     expect(mockedRemoveRecentProject).toHaveBeenCalledWith('/home/user/docs')
+  })
+
+  it('updates the rendered list when notified of a change made outside the component', () => {
+    mockedGetRecentProjects.mockReturnValue([
+      { name: 'Docs', rootPath: '/home/user/docs', lastOpenedAt: 1 },
+      { name: 'Notes', rootPath: '/home/user/notes', lastOpenedAt: 2 },
+    ])
+
+    render(<RecentProjects onOpen={() => {}} />)
+
+    expect(screen.getByText('Docs')).toBeInTheDocument()
+    expect(screen.getByText('Notes')).toBeInTheDocument()
+    expect(mockedSubscribeToRecentProjects).toHaveBeenCalledTimes(1)
+
+    // Simulate the project controller removing a stale entry (e.g. after openProjectAt fails)
+    // by calling the listener the component registered, the same way the real
+    // subscribeToRecentProjects/notifyListeners pair would.
+    const externalListener = mockedSubscribeToRecentProjects.mock.calls[0][0]
+    mockedGetRecentProjects.mockReturnValue([
+      { name: 'Notes', rootPath: '/home/user/notes', lastOpenedAt: 2 },
+    ])
+
+    act(() => {
+      externalListener()
+    })
+
+    expect(screen.queryByText('Docs')).not.toBeInTheDocument()
+    expect(screen.getByText('Notes')).toBeInTheDocument()
+  })
+
+  it('unsubscribes on unmount', () => {
+    mockedGetRecentProjects.mockReturnValue([
+      { name: 'Docs', rootPath: '/home/user/docs', lastOpenedAt: 1 },
+    ])
+    const unsubscribe = vi.fn()
+    mockedSubscribeToRecentProjects.mockReturnValue(unsubscribe)
+
+    const { unmount } = render(<RecentProjects onOpen={() => {}} />)
+    unmount()
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

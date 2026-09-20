@@ -7,6 +7,24 @@ export interface RecentProject {
   lastOpenedAt: number
 }
 
+type Listener = () => void
+
+// Components (e.g. RecentProjects) read this storage once on mount, but other code (e.g. the
+// project controller, after a failed openProjectAt) can also write to it. Listeners let those
+// already-rendered components stay in sync instead of going stale until a remount.
+const listeners = new Set<Listener>()
+
+function notifyListeners(): void {
+  for (const listener of listeners) {
+    listener()
+  }
+}
+
+export function subscribeToRecentProjects(listener: Listener): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 function readAll(): RecentProject[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -23,6 +41,8 @@ function writeAll(projects: RecentProject[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
   } catch {
     // Ignore storage failures (unavailable, quota exceeded, etc.)
+  } finally {
+    notifyListeners()
   }
 }
 

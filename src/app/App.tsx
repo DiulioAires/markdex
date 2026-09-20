@@ -44,8 +44,19 @@ export function App({ api }: AppProps = {}) {
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const visibleError = error && error !== dismissedError ? error : null
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+  // Only one overlay (Settings or the Command Palette) may be open at a time: they share the
+  // same backdrop and z-index, so two independent booleans could render both simultaneously
+  // (e.g. opening Settings from the ActivityBar, then pressing Ctrl+Shift+P) and fight over
+  // focus and the Escape key. A single piece of state makes that impossible by construction.
+  const [activeOverlay, setActiveOverlay] = useState<'settings' | 'command-palette' | null>(null)
+  const isSettingsOpen = activeOverlay === 'settings'
+  const isCommandPaletteOpen = activeOverlay === 'command-palette'
+  // Closing an overlay only clears state if that overlay is still the active one. This matters
+  // because CommandPalette always calls onClose right after running the selected item: for the
+  // "Abrir configurações" item, run() switches activeOverlay to 'settings' first, and a plain
+  // setActiveOverlay(null) afterwards would immediately undo that in the same batch.
+  const closeOverlayIfActive = (kind: 'settings' | 'command-palette') =>
+    setActiveOverlay((current) => (current === kind ? null : current))
 
   const commandItems: CommandItem[] = [
     {
@@ -90,7 +101,7 @@ export function App({ api }: AppProps = {}) {
     {
       id: 'open-settings',
       label: 'Abrir configurações',
-      run: () => setIsSettingsOpen(true),
+      run: () => setActiveOverlay('settings'),
     },
   ]
 
@@ -100,7 +111,10 @@ export function App({ api }: AppProps = {}) {
         (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'p'
       if (isCommandPaletteShortcut) {
         event.preventDefault()
-        setIsCommandPaletteOpen(true)
+        // Only open when no overlay is already active, so this shortcut can't stack a second
+        // modal on top of one the user already opened (matching the mouse behavior, where the
+        // ActivityBar sits behind the current overlay's backdrop and can't be clicked).
+        setActiveOverlay((current) => current ?? 'command-palette')
         return
       }
 
@@ -133,9 +147,9 @@ export function App({ api }: AppProps = {}) {
           isOpening={isOpening}
           onOpenRecentProject={(rootPath) => void openProjectAt(rootPath)}
         />
-        {isSettingsOpen ? <SettingsPanel onClose={() => setIsSettingsOpen(false)} /> : null}
+        {isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} /> : null}
         {isCommandPaletteOpen ? (
-          <CommandPalette items={commandItems} onClose={() => setIsCommandPaletteOpen(false)} />
+          <CommandPalette items={commandItems} onClose={() => closeOverlayIfActive('command-palette')} />
         ) : null}
       </>
     )
@@ -153,8 +167,8 @@ export function App({ api }: AppProps = {}) {
       isDirty={activeTab?.isDirty ?? false}
       isSaving={status === 'saving'}
       onSave={() => void saveActiveFile()}
-      onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-      onOpenSettings={() => setIsSettingsOpen(true)}
+      onOpenCommandPalette={() => setActiveOverlay('command-palette')}
+      onOpenSettings={() => setActiveOverlay('settings')}
       explorerSlot={
         <ExplorerColumn
           projects={projects}
@@ -185,10 +199,10 @@ export function App({ api }: AppProps = {}) {
       toastSlot={
         visibleError ? <Toast message={visibleError} onDismiss={() => setDismissedError(error)} /> : null
       }
-      settingsSlot={isSettingsOpen ? <SettingsPanel onClose={() => setIsSettingsOpen(false)} /> : null}
+      settingsSlot={isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} /> : null}
       commandPaletteSlot={
         isCommandPaletteOpen ? (
-          <CommandPalette items={commandItems} onClose={() => setIsCommandPaletteOpen(false)} />
+          <CommandPalette items={commandItems} onClose={() => closeOverlayIfActive('command-palette')} />
         ) : null
       }
     />
