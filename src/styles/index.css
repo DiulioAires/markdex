@@ -1025,10 +1025,6 @@ kbd {
   font-size: 0.875rem;
 }
 
-.command-palette__input:focus {
-  outline: none;
-}
-
 .command-palette__list {
   display: flex;
   flex-direction: column;
