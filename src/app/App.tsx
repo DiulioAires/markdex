@@ -22,6 +22,7 @@ export function App({ api }: AppProps = {}) {
     openFile,
     closeProject,
     saveActiveFile,
+    syncOpenFiles,
     refreshTree,
     status,
     error,
@@ -138,6 +139,21 @@ export function App({ api }: AppProps = {}) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [openProject, saveActiveFile, isOpening])
+
+  useEffect(() => {
+    if (!activeTab?.isDirty) return
+    const timer = window.setTimeout(() => {
+      void saveActiveFile(true)
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, saveActiveFile])
+
+  useEffect(() => {
+    if (tabs.length === 0) return
+    void syncOpenFiles()
+    const timer = window.setInterval(() => void syncOpenFiles(), 1000)
+    return () => window.clearInterval(timer)
+  }, [tabs.length, syncOpenFiles])
 
   if (projects.length === 0) {
     return (

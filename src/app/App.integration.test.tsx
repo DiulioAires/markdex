@@ -148,6 +148,24 @@ describe('App integration journey', () => {
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled()
   })
 
+  it('autosaves a dirty file after one second without typing', async () => {
+    const user = userEvent.setup()
+    const api = createInMemoryApi()
+
+    render(<App api={api} />)
+    await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
+    await screen.findByText('README.md')
+    await user.click(screen.getByText('README.md'))
+
+    const editor = await screen.findByRole('textbox')
+    await user.click(editor)
+    await user.type(editor, ' autosaved')
+
+    await waitFor(() => expect(api.writeFile).toHaveBeenCalled(), { timeout: 2500 })
+    expect(useWorkspaceStore.getState().tabs[0].isDirty).toBe(false)
+    expect((api.writeFile as ReturnType<typeof vi.fn>).mock.calls[0][2]).toContain('autosaved')
+  })
+
   it('opens two different projects side by side, each keeping its own tabs when the other is closed', async () => {
     const user = userEvent.setup()
     const secondProject: ProjectInfo = { name: 'Blog', rootPath: 'C:\\projects\\blog' }

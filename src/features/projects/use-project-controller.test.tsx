@@ -333,4 +333,40 @@ describe('useProjectController', () => {
     expect(useWorkspaceStore.getState().tabs[0].isDirty).toBe(true)
     expect(useWorkspaceStore.getState().tabs[0].content).toBe('# Changed')
   })
+
+  it('reloads clean tabs when the file changes outside Markdex', async () => {
+    const api = createFakeApi({ readFile: vi.fn().mockResolvedValueOnce('# Hello').mockResolvedValueOnce('# External') })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+      await result.current.openFile(readme, project.rootPath)
+      await result.current.syncOpenFiles()
+    })
+
+    expect(useWorkspaceStore.getState().tabs[0].content).toBe('# External')
+    expect(useWorkspaceStore.getState().tabs[0].isDirty).toBe(false)
+  })
+
+  it('preserves local edits and marks a conflict when the file changes externally', async () => {
+    const api = createFakeApi({ readFile: vi.fn().mockResolvedValueOnce('# Hello').mockResolvedValueOnce('# External') })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+      await result.current.openFile(readme, project.rootPath)
+    })
+    act(() => {
+      useWorkspaceStore.getState().updateBuffer(readme.path, '# Local')
+    })
+
+    await act(async () => {
+      await result.current.syncOpenFiles()
+    })
+
+    const tab = useWorkspaceStore.getState().tabs[0]
+    expect(tab.content).toBe('# Local')
+    expect(tab.isDirty).toBe(true)
+    expect(tab.hasExternalConflict).toBe(true)
+  })
 })

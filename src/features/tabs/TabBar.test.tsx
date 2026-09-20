@@ -25,6 +25,7 @@ function makeTab(overrides: Partial<DocumentTab>): DocumentTab {
     savedContent: '# Notes',
     content: '# Notes',
     isDirty: false,
+    hasExternalConflict: false,
     isLoading: false,
     error: null,
     cursor: { line: 1, column: 1 },

@@ -27,6 +27,8 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   const openTab = useWorkspaceStore((state) => state.openTab)
   const activateTab = useWorkspaceStore((state) => state.activateTab)
   const markSaved = useWorkspaceStore((state) => state.markSaved)
+  const updateExternalContent = useWorkspaceStore((state) => state.updateExternalContent)
+  const markExternalConflict = useWorkspaceStore((state) => state.markExternalConflict)
 
   const registerProject = useCallback(
     async (info: ProjectInfo) => {
@@ -156,11 +158,16 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     [api, activateTab, openTab],
   )
 
-  const saveActiveFile = useCallback(async () => {
+  const saveActiveFile = useCallback(async (automatic = false) => {
     const { tabs, activeTabPath } = useWorkspaceStore.getState()
     const activeTab = tabs.find((tab) => tab.path === activeTabPath)
 
     if (!activeTab) {
+      return
+    }
+
+    if (automatic && activeTab.hasExternalConflict) {
+      setError('O arquivo foi alterado externamente. Salve manualmente para confirmar a sobrescrita.')
       return
     }
 
@@ -176,12 +183,33 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     }
   }, [api, markSaved])
 
+  const syncOpenFiles = useCallback(async () => {
+    const tabs = useWorkspaceStore.getState().tabs
+    await Promise.all(
+      tabs.map(async (tab) => {
+        try {
+          const diskContent = await api.readFile(tab.rootPath, tab.path)
+          if (diskContent === tab.savedContent) return
+          if (tab.isDirty) {
+            markExternalConflict(tab.path)
+            setError(`Conflito detectado em ${tab.name}: o arquivo foi alterado externamente.`)
+          } else {
+            updateExternalContent(tab.path, diskContent)
+          }
+        } catch {
+          // The regular save/open flows surface actionable errors; background sync stays quiet.
+        }
+      }),
+    )
+  }, [api, markExternalConflict, updateExternalContent])
+
   return {
     openProject,
     openProjectAt,
     openFile,
     closeProject,
     saveActiveFile,
+    syncOpenFiles,
     refreshTree,
     status,
     error,

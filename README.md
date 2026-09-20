@@ -23,9 +23,9 @@ back to disk — all in a small, focused, offline-first app.
   opened, so you can reopen one with a click instead of the folder picker.
 - **Settings.** Adjust the editor's font size and see every keyboard
   shortcut in one place.
-- **Explicit, predictable saving.** Nothing is written to disk until you
-  ask for it (`Ctrl+S` or the Save button) — see [Current limitations](#current-limitations)
-  for what else is intentionally left out.
+- **Autosave and external synchronization.** Dirty files are saved after one
+  second without typing, clean tabs reload changes made by other programs,
+  and concurrent edits are preserved as conflicts instead of being overwritten.
 
 ## Keyboard shortcuts
 
@@ -111,8 +111,6 @@ cargo check --manifest-path src-tauri/Cargo.toml
 The following are intentionally **out of scope**, not silently missing —
 they were left out on purpose to keep Markdex small and predictable:
 
-- **No autosave.** Changes are only written to disk when you explicitly
-  save.
 - **No file management.** There is no create, rename, or delete for files
   or folders from within the app.
 - **No git integration.** No diff, stage, commit, or branch UI.

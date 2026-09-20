@@ -22,6 +22,9 @@ interface WorkspaceState {
   openTab: (file: TabFile, content: string) => void
   activateTab: (path: string) => void
   updateBuffer: (path: string, content: string) => void
+  updateExternalContent: (path: string, content: string) => void
+  markExternalConflict: (path: string) => void
+  clearExternalConflict: (path: string) => void
   updateCursor: (path: string, cursor: CursorPosition) => void
   markSaved: (path: string) => void
   closeTab: (path: string) => void
@@ -99,6 +102,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
                 savedContent: content,
                 content,
                 isDirty: false,
+                hasExternalConflict: false,
                 isLoading: false,
                 error: null,
                 cursor: { line: 1, column: 1 },
@@ -122,6 +126,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       ),
     })),
 
+  updateExternalContent: (path, content) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.path === path
+          ? { ...tab, content, savedContent: content, isDirty: false, hasExternalConflict: false }
+          : tab,
+      ),
+    })),
+
+  markExternalConflict: (path) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.path === path ? { ...tab, hasExternalConflict: true } : tab,
+      ),
+    })),
+
+  clearExternalConflict: (path) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.path === path ? { ...tab, hasExternalConflict: false } : tab,
+      ),
+    })),
+
   updateCursor: (path, cursor) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.path === path ? { ...tab, cursor } : tab)),
@@ -130,7 +157,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   markSaved: (path) =>
     set((state) => ({
       tabs: state.tabs.map((tab) =>
-        tab.path === path ? { ...tab, savedContent: tab.content, isDirty: false } : tab,
+        tab.path === path
+          ? { ...tab, savedContent: tab.content, isDirty: false, hasExternalConflict: false }
+          : tab,
       ),
     })),
 

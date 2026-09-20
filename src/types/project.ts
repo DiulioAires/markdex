@@ -37,6 +37,7 @@ export interface DocumentTab extends TabFile {
   savedContent: string
   content: string
   isDirty: boolean
+  hasExternalConflict: boolean
   isLoading: boolean
   error: string | null
   cursor: CursorPosition
