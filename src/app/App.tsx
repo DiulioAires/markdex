@@ -10,7 +10,9 @@ import { CommandPalette } from '../features/command-palette/CommandPalette'
 import type { CommandItem } from '../features/command-palette/commands'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import type { NativeApi } from '../lib/native-api'
-import { loadWorkspaceSession, saveWorkspaceSession } from '../features/projects/workspace-session'
+import { readSession, writeSession } from '../stores/session-store'
+import { flattenMarkdownFiles } from '../features/projects/file-catalog'
+import { ProjectHome } from '../features/projects/ProjectHome'
 import { toggleWindowMaximized } from '../lib/window-controls'
 import { useSettingsStore } from '../stores/settings-store'
 import { findUpdate, installUpdate } from '../features/updates/update-service'
@@ -42,9 +44,14 @@ export function App({ api }: AppProps = {}) {
   const viewMode = useWorkspaceStore((state) => state.viewMode)
   const setViewMode = useWorkspaceStore((state) => state.setViewMode)
   const closeTab = useWorkspaceStore((state) => state.closeTab)
+  const activeProjectRootPath = useWorkspaceStore((state) => state.activeProjectRootPath)
+  const setActiveProject = useWorkspaceStore((state) => state.setActiveProject)
+  const moveProject = useWorkspaceStore((state) => state.moveProject)
   const autosaveEnabled = useSettingsStore((state) => state.autosaveEnabled)
   const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
   const lastUpdateCheckAt = useSettingsStore((state) => state.lastUpdateCheckAt)
+  const restoreLastSession = useSettingsStore((state) => state.restoreLastSession)
+  const startupProject = useSettingsStore((state) => state.startupProject)
   const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
   const setLastUpdateCheckAt = useSettingsStore((state) => state.setLastUpdateCheckAt)
 
@@ -52,7 +59,8 @@ export function App({ api }: AppProps = {}) {
   const activeTab = tabs.find((tab) => tab.path === activeTabPath) ?? null
   const activeProject = activeTab
     ? projects.find((entry) => entry.info.rootPath === activeTab.rootPath) ?? null
-    : null
+    : projects.find((entry) => entry.info.rootPath === activeProjectRootPath) ??
+      (startupProject === 'last' ? projects[projects.length - 1] : projects[0]) ?? null
   const statusBarProjectName =
     activeProject?.info.name ?? (projects.length === 1 ? projects[0].info.name : null)
 
@@ -64,6 +72,7 @@ export function App({ api }: AppProps = {}) {
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const restoredSession = useRef(false)
+  const sessionHydrated = useRef(false)
   const visibleError = error && error !== dismissedError ? error : null
 
   const checkForUpdates = useCallback(async (manual = false) => {
@@ -89,27 +98,43 @@ export function App({ api }: AppProps = {}) {
   }, [checkForUpdates])
 
   useEffect(() => {
+    if (restoredSession.current) return
+    restoredSession.current = true
+    if (!restoreLastSession) {
+      sessionHydrated.current = true
+      return
+    }
     let cancelled = false
-    const roots = loadWorkspaceSession().projectRoots
+    const session = readSession()
     void (async () => {
-      for (const rootPath of roots) {
+      for (const project of session.projects) {
         if (cancelled) return
-        await openProjectAt(rootPath)
+        await openProjectAt(project.rootPath)
       }
       if (!cancelled) {
-        restoredSession.current = true
-        saveWorkspaceSession(useWorkspaceStore.getState().projects.map((project) => project.info.rootPath))
+        const state = useWorkspaceStore.getState()
+        const preferredRootPath = startupProject === 'first'
+          ? state.projects[0]?.info.rootPath
+          : session.activeProjectRootPath ?? state.projects[state.projects.length - 1]?.info.rootPath
+        if (preferredRootPath) setActiveProject(preferredRootPath)
+        if (session.activeFilePath && session.activeProjectRootPath === preferredRootPath) {
+          const project = state.projects.find((entry) => entry.info.rootPath === preferredRootPath)
+          const file = project ? flattenMarkdownFiles(project.tree).find((candidate) => candidate.path === session.activeFilePath) : null
+          if (file && project) await openFile(file, project.info.rootPath)
+        }
+        sessionHydrated.current = true
+        writeSession({ projects: useWorkspaceStore.getState().projects.map((project) => project.info), activeProjectRootPath: preferredRootPath ?? null, activeFilePath: useWorkspaceStore.getState().activeTabPath })
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [openProjectAt])
+  }, [openFile, openProjectAt, restoreLastSession, setActiveProject, startupProject])
 
   useEffect(() => {
-    if (!restoredSession.current) return
-    saveWorkspaceSession(projects.map((project) => project.info.rootPath))
-  }, [projects])
+    if (!sessionHydrated.current) return
+    writeSession({ projects: projects.map((project) => project.info), activeProjectRootPath: activeProject?.info.rootPath ?? null, activeFilePath: activeTabPath })
+  }, [activeProject?.info.rootPath, activeTabPath, projects])
 
   // Only one overlay (Settings or the Command Palette) may be open at a time: they share the
   // same backdrop and z-index, so two independent booleans could render both simultaneously
@@ -264,6 +289,8 @@ export function App({ api }: AppProps = {}) {
           onToggleExpand={(rootPath) => useWorkspaceStore.getState().toggleProjectExpanded(rootPath)}
           onRefresh={(rootPath) => void refreshTree(rootPath)}
           onClose={(rootPath) => void closeProject(rootPath)}
+          onMoveProject={(rootPath, targetIndex) => moveProject(rootPath, targetIndex)}
+          onSelectProject={setActiveProject}
           onCreateFile={(rootPath, parentPath) => {
             const path = askEntryName(parentPath ?? rootPath, false)
             if (path) void createFile(rootPath, path)
@@ -293,12 +320,7 @@ export function App({ api }: AppProps = {}) {
               <span className="loading-skeleton__bar" />
             </div>
           ) : null}
-          <EditorWorkspace
-            tabs={tabs}
-            activeTab={activeTab}
-            activeTabPath={activeTabPath}
-            projects={projects}
-          />
+          {activeTab ? <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} projects={projects} /> : activeProject ? <ProjectHome project={activeProject} onOpenFile={(file) => void openFile(file, activeProject.info.rootPath)} /> : <p className="workspace-placeholder">Selecione um arquivo para começar a editar.</p>}
         </>
       }
       toastSlot={

@@ -419,6 +419,12 @@ fn read_markdown_directory(
                     name,
                     path,
                     relative_path,
+                    modified_at: directory
+                        .metadata(&entry.path)
+                        .ok()
+                        .and_then(|metadata| metadata.modified().ok())
+                        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|duration| duration.as_millis() as i64),
                 }),
             }
         })

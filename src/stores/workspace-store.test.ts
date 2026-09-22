@@ -81,6 +81,24 @@ describe('workspace store', () => {
     expect(useWorkspaceStore.getState().projects).toHaveLength(1)
   })
 
+  it('moves projects without changing their contents', () => {
+    const first = makeProjectEntry('C:\\first', 'First')
+    const second = makeProjectEntry('C:\\second', 'Second')
+    const third = makeProjectEntry('C:\\third', 'Third')
+    useWorkspaceStore.getState().addProject(first)
+    useWorkspaceStore.getState().addProject(second)
+    useWorkspaceStore.getState().addProject(third)
+
+    useWorkspaceStore.getState().moveProject('C:\\third', 0)
+
+    expect(useWorkspaceStore.getState().projects.map((project) => project.info.name)).toEqual([
+      'Third',
+      'First',
+      'Second',
+    ])
+    expect(useWorkspaceStore.getState().projects[0].tree).toEqual([])
+  })
+
   it('toggles a single project expanded state without affecting others', () => {
     useWorkspaceStore.getState().addProject(makeProjectEntry('C:\\work', 'Work'))
     useWorkspaceStore.getState().addProject(makeProjectEntry('C:\\other', 'Other'))

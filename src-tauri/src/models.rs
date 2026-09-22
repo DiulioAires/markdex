@@ -18,6 +18,7 @@ pub enum FileNode {
         name: String,
         path: String,
         relative_path: String,
+        modified_at: Option<i64>,
     },
     Directory {
         name: String,
@@ -38,6 +39,7 @@ mod tests {
             name: "README.md".to_owned(),
             path: "C:\\project\\README.md".to_owned(),
             relative_path: "README.md".to_owned(),
+            modified_at: None,
         };
 
         assert_eq!(
@@ -46,7 +48,8 @@ mod tests {
                 "kind": "file",
                 "name": "README.md",
                 "path": "C:\\project\\README.md",
-                "relativePath": "README.md"
+                "relativePath": "README.md",
+                "modifiedAt": null
             })
         );
     }
