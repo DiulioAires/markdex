@@ -14,6 +14,12 @@ const readme: FileNode = {
   path: 'C:\\work\\README.md',
   relativePath: 'README.md',
 }
+const otherReadme: FileNode = {
+  kind: 'file',
+  name: 'OTHER.md',
+  path: 'C:\\other\\OTHER.md',
+  relativePath: 'OTHER.md',
+}
 
 function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
   return {
@@ -84,6 +90,29 @@ describe('useProjectController', () => {
 
     const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
     expect(roots).toEqual([project.rootPath, otherProject.rootPath])
+  })
+
+  it('loads each project tree into its own project entry', async () => {
+    const api = createFakeApi({
+      openProject: vi
+        .fn()
+        .mockResolvedValueOnce(project)
+        .mockResolvedValueOnce(otherProject),
+      listTree: vi.fn().mockImplementation(async (rootPath: string) =>
+        rootPath === project.rootPath ? [readme] : [otherReadme],
+      ),
+    })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+      await result.current.openProject()
+    })
+
+    expect(useWorkspaceStore.getState().projects.map((entry) => entry.tree)).toEqual([
+      [readme],
+      [otherReadme],
+    ])
   })
 
   it('does not store a project or tree when the user cancels the dialog', async () => {

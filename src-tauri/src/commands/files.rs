@@ -102,12 +102,13 @@ impl AuthorizedProjectRoot {
     }
 
     fn close(&self, root_path: &str) -> Result<(), String> {
+        let canonical_root = canonical_project_root(Path::new(root_path))?;
         let mut projects = self
             .projects
             .lock()
             .map_err(|_| "Open project state is unavailable".to_owned())?;
         projects
-            .remove(&PathBuf::from(root_path))
+            .remove(&canonical_root)
             .ok_or_else(|| "Requested root does not match an open project".to_owned())?;
         Ok(())
     }
@@ -419,16 +420,20 @@ fn read_markdown_directory(
                     name,
                     path,
                     relative_path,
-                    modified_at: directory
-                        .metadata(&entry.path)
-                        .ok()
-                        .and_then(|metadata| metadata.modified().ok())
-                        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|duration| duration.as_millis() as i64),
+                    modified_at: modified_at_millis(directory, &entry.path),
                 }),
             }
         })
         .collect()
+}
+
+fn modified_at_millis(directory: &Dir, path: &Path) -> Option<i64> {
+    directory
+        .metadata(path)
+        .ok()
+        .and_then(|metadata| metadata.modified().ok())
+        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as i64)
 }
 
 fn compare_tree_entries(left: &TreeEntry, right: &TreeEntry) -> Ordering {
@@ -562,6 +567,31 @@ mod tests {
     }
 
     #[test]
+    fn reading_two_projects_keeps_each_tree_and_file_isolated() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        fs::write(first.path().join("first.md"), "# First").unwrap();
+        fs::write(second.path().join("second.md"), "# Second").unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(first.path()).unwrap();
+        project_root.authorize(second.path()).unwrap();
+
+        let first_tree = list_markdown_tree_for(&project_root, first.path().display().to_string()).unwrap();
+        let second_tree = list_markdown_tree_for(&project_root, second.path().display().to_string()).unwrap();
+
+        assert!(matches!(first_tree.as_slice(), [FileNode::File { name, .. }] if name == "first.md"));
+        assert!(matches!(second_tree.as_slice(), [FileNode::File { name, .. }] if name == "second.md"));
+        assert_eq!(
+            read_markdown_file_for(
+                &project_root,
+                second.path().display().to_string(),
+                second.path().join("second.md").display().to_string(),
+            ).unwrap(),
+            "# Second"
+        );
+    }
+
+    #[test]
     fn closing_a_root_that_was_never_authorized_returns_an_error() {
         let dir = tempfile::tempdir().unwrap();
         let project_root = AuthorizedProjectRoot::default();
@@ -629,6 +659,23 @@ mod tests {
             .collect();
 
         assert_eq!(names, ["Alpha", "zeta", "notes.MDX", "README.md"]);
+    }
+
+    #[test]
+    fn reads_file_modified_time_as_unix_epoch_millis() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("README.md"), "# Hello").unwrap();
+        let directory = Dir::open_ambient_dir(dir.path(), ambient_authority()).unwrap();
+
+        assert!(modified_at_millis(&directory, Path::new("README.md")).is_some());
+    }
+
+    #[test]
+    fn returns_none_when_file_metadata_is_unavailable() {
+        let dir = tempfile::tempdir().unwrap();
+        let directory = Dir::open_ambient_dir(dir.path(), ambient_authority()).unwrap();
+
+        assert_eq!(modified_at_millis(&directory, Path::new("missing.md")), None);
     }
 
     #[test]
