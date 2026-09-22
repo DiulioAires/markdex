@@ -18,6 +18,22 @@ function makeEntry(overrides: Partial<ProjectEntry> = {}): ProjectEntry {
 }
 
 describe('ExplorerPanel', () => {
+  it('identifies the in-project folder creation action with its own icon and label', () => {
+    render(
+      <ExplorerPanel
+        project={makeEntry()}
+        activeFilePath={null}
+        onOpenFile={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onRefresh={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const createFolderButton = screen.getByRole('button', { name: 'Criar pasta dentro do projeto' })
+    expect(createFolderButton.querySelector('svg')).toHaveClass('lucide-folder-plus')
+  })
+
   it('shows the project name and exposes its expanded state', () => {
     render(
       <ExplorerPanel
@@ -134,6 +150,8 @@ describe('ExplorerPanel', () => {
     )
 
     expect(screen.getByRole('status', { name: /carregando/i })).toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Carregando arquivos Markdown de Work' })).toBeInTheDocument()
+    expect(screen.getByText('Carregando arquivos de Work…')).toBeInTheDocument()
     expect(screen.queryByText('README.md')).not.toBeInTheDocument()
   })
 })

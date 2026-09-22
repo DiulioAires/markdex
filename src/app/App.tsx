@@ -13,6 +13,8 @@ import type { NativeApi } from '../lib/native-api'
 import { readSession, writeSession } from '../stores/session-store'
 import { flattenMarkdownFiles } from '../features/projects/file-catalog'
 import { ProjectHome } from '../features/projects/ProjectHome'
+import { SessionRestorePrompt } from '../features/projects/SessionRestorePrompt'
+import type { PersistedSession } from '../stores/session-store'
 import { toggleWindowMaximized } from '../lib/window-controls'
 import { useSettingsStore } from '../stores/settings-store'
 import { findUpdate, installUpdate } from '../features/updates/update-service'
@@ -29,7 +31,6 @@ export function App({ api }: AppProps = {}) {
     closeProject,
     saveActiveFile,
     syncOpenFiles,
-    syncOpenProjectTrees,
     refreshTree,
     createFile,
     createDirectory,
@@ -50,7 +51,7 @@ export function App({ api }: AppProps = {}) {
   const autosaveEnabled = useSettingsStore((state) => state.autosaveEnabled)
   const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
   const lastUpdateCheckAt = useSettingsStore((state) => state.lastUpdateCheckAt)
-  const restoreLastSession = useSettingsStore((state) => state.restoreLastSession)
+  const sessionStartupMode = useSettingsStore((state) => state.sessionStartupMode)
   const startupProject = useSettingsStore((state) => state.startupProject)
   const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
   const setLastUpdateCheckAt = useSettingsStore((state) => state.setLastUpdateCheckAt)
@@ -71,9 +72,42 @@ export function App({ api }: AppProps = {}) {
   }
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
-  const restoredSession = useRef(false)
+  const startupHandled = useRef(false)
+  const startupPending = useRef(false)
+  const pendingSession = useRef<PersistedSession | null>(null)
   const sessionHydrated = useRef(false)
+  const [sessionPromptOpen, setSessionPromptOpen] = useState(false)
+  const [isRestoringSession, setIsRestoringSession] = useState(false)
   const visibleError = error && error !== dismissedError ? error : null
+
+  const restoreSession = useCallback(async (session: PersistedSession) => {
+    setIsRestoringSession(true)
+    startupPending.current = true
+    for (const project of session.projects) {
+      await openProjectAt(project.rootPath)
+    }
+    const state = useWorkspaceStore.getState()
+    const preferredRootPath = startupProject === 'first'
+      ? state.projects[0]?.info.rootPath
+      : state.projects.find((project) => project.info.rootPath === session.activeProjectRootPath)?.info.rootPath
+        ?? state.projects[state.projects.length - 1]?.info.rootPath
+    if (preferredRootPath) setActiveProject(preferredRootPath)
+    if (session.activeFilePath && session.activeProjectRootPath === preferredRootPath) {
+      const project = state.projects.find((entry) => entry.info.rootPath === preferredRootPath)
+      const file = project ? flattenMarkdownFiles(project.tree).find((candidate) => candidate.path === session.activeFilePath) : null
+      if (file && project) await openFile(file, project.info.rootPath)
+    }
+    startupPending.current = false
+    sessionHydrated.current = true
+    setSessionPromptOpen(false)
+    setIsRestoringSession(false)
+    const restoredState = useWorkspaceStore.getState()
+    writeSession({
+      projects: restoredState.projects.map((project) => project.info),
+      activeProjectRootPath: preferredRootPath ?? null,
+      activeFilePath: restoredState.activeTabPath,
+    })
+  }, [openFile, openProjectAt, setActiveProject, startupProject])
 
   const checkForUpdates = useCallback(async (manual = false) => {
     const day = 24 * 60 * 60 * 1000
@@ -98,40 +132,39 @@ export function App({ api }: AppProps = {}) {
   }, [checkForUpdates])
 
   useEffect(() => {
-    if (restoredSession.current) return
-    restoredSession.current = true
-    if (!restoreLastSession) {
+    if (startupHandled.current) return
+    startupHandled.current = true
+    const session = readSession()
+    if (session.projects.length === 0) {
       sessionHydrated.current = true
       return
     }
-    let cancelled = false
-    const session = readSession()
-    void (async () => {
-      for (const project of session.projects) {
-        if (cancelled) return
-        await openProjectAt(project.rootPath)
-      }
-      if (!cancelled) {
-        const state = useWorkspaceStore.getState()
-        const preferredRootPath = startupProject === 'first'
-          ? state.projects[0]?.info.rootPath
-          : session.activeProjectRootPath ?? state.projects[state.projects.length - 1]?.info.rootPath
-        if (preferredRootPath) setActiveProject(preferredRootPath)
-        if (session.activeFilePath && session.activeProjectRootPath === preferredRootPath) {
-          const project = state.projects.find((entry) => entry.info.rootPath === preferredRootPath)
-          const file = project ? flattenMarkdownFiles(project.tree).find((candidate) => candidate.path === session.activeFilePath) : null
-          if (file && project) await openFile(file, project.info.rootPath)
-        }
-        sessionHydrated.current = true
-        writeSession({ projects: useWorkspaceStore.getState().projects.map((project) => project.info), activeProjectRootPath: preferredRootPath ?? null, activeFilePath: useWorkspaceStore.getState().activeTabPath })
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (sessionStartupMode === 'empty') return
+    if (sessionStartupMode === 'ask') {
+      startupPending.current = true
+      pendingSession.current = session
+      setSessionPromptOpen(true)
+      return
     }
-  }, [openFile, openProjectAt, restoreLastSession, setActiveProject, startupProject])
+    void restoreSession(session)
+  }, [restoreSession, sessionStartupMode])
+
+  const handleRestoreSession = () => {
+    const session = pendingSession.current
+    if (!session) return
+    pendingSession.current = null
+    void restoreSession(session)
+  }
+
+  const handleStartEmpty = () => {
+    pendingSession.current = null
+    startupPending.current = false
+    setSessionPromptOpen(false)
+  }
 
   useEffect(() => {
+    if (startupPending.current) return
+    if (!sessionHydrated.current && projects.length > 0) sessionHydrated.current = true
     if (!sessionHydrated.current) return
     writeSession({ projects: projects.map((project) => project.info), activeProjectRootPath: activeProject?.info.rootPath ?? null, activeFilePath: activeTabPath })
   }, [activeProject?.info.rootPath, activeTabPath, projects])
@@ -240,19 +273,18 @@ export function App({ api }: AppProps = {}) {
   }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, autosaveEnabled, saveActiveFile])
 
   useEffect(() => {
-    if (tabs.length === 0 && projects.length === 0) return
+    if (tabs.length === 0) return
     void syncOpenFiles()
-    void syncOpenProjectTrees()
     const timer = window.setInterval(() => {
       void syncOpenFiles()
-      void syncOpenProjectTrees()
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [projects.length, tabs.length, syncOpenFiles, syncOpenProjectTrees])
+  }, [tabs.length, syncOpenFiles])
 
   if (projects.length === 0) {
     return (
       <>
+        {sessionPromptOpen ? <SessionRestorePrompt isRestoring={isRestoringSession} onRestore={handleRestoreSession} onStartEmpty={handleStartEmpty} /> : null}
         <WelcomeView
           onOpenProject={() => void openProject()}
           isOpening={isOpening}
@@ -267,6 +299,7 @@ export function App({ api }: AppProps = {}) {
   }
 
   return (
+    <>
     <AppShell
       viewMode={viewMode}
       onSelectViewMode={setViewMode}
@@ -320,7 +353,7 @@ export function App({ api }: AppProps = {}) {
               <span className="loading-skeleton__bar" />
             </div>
           ) : null}
-          {activeTab ? <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} projects={projects} /> : activeProject ? <ProjectHome project={activeProject} onOpenFile={(file) => void openFile(file, activeProject.info.rootPath)} /> : <p className="workspace-placeholder">Selecione um arquivo para começar a editar.</p>}
+          {activeTab ? <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} projects={projects} /> : activeProject ? <ProjectHome project={activeProject} onOpenFile={(file) => void openFile(file, activeProject.info.rootPath)} onRefresh={() => void refreshTree(activeProject.info.rootPath)} /> : <p className="workspace-placeholder">Selecione um arquivo para começar a editar.</p>}
         </>
       }
       toastSlot={
@@ -333,5 +366,7 @@ export function App({ api }: AppProps = {}) {
         ) : null
       }
     />
+    {sessionPromptOpen ? <SessionRestorePrompt isRestoring={isRestoringSession} onRestore={handleRestoreSession} onStartEmpty={handleStartEmpty} /> : null}
+    </>
   )
 }

@@ -8,9 +8,10 @@ import { filterAndSortFiles, flattenMarkdownFiles, type FileSortKey, type SortDi
 export interface ProjectHomeProps {
   project: ProjectEntry
   onOpenFile: (file: FileNode) => void
+  onRefresh: () => void
 }
 
-export function ProjectHome({ project, onOpenFile }: ProjectHomeProps) {
+export function ProjectHome({ project, onOpenFile, onRefresh }: ProjectHomeProps) {
   const showRecentFiles = useSettingsStore((state) => state.showRecentFiles)
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState<FileSortKey>('name')
@@ -42,7 +43,25 @@ export function ProjectHome({ project, onOpenFile }: ProjectHomeProps) {
           <select aria-label="Ordenar arquivos" value={sortKey} onChange={(event) => setSortKey(event.target.value as FileSortKey)}><option value="name">Nome</option><option value="modifiedAt">Data</option><option value="path">Caminho</option></select>
           <button type="button" className="icon-button" aria-label={direction === 'asc' ? 'Ordem crescente' : 'Ordem decrescente'} title={direction === 'asc' ? 'Ordem crescente' : 'Ordem decrescente'} onClick={() => setDirection((current) => current === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? <ArrowDownAZ size={15} /> : <ArrowUpAZ size={15} />}</button>
         </div>
-        {catalog.length > 0 ? <div className="project-home__file-list">{catalog.map((file) => <button key={file.path} type="button" className="project-home__file" aria-label={`Abrir ${file.name}`} onClick={() => onOpenFile(file)}><span className="project-home__file-name" data-name={file.name} aria-hidden="true" /><small data-path={file.relativePath} aria-hidden="true" /></button>)}</div> : <p className="project-home__empty">Nenhum arquivo corresponde ao filtro.</p>}
+        {project.isLoadingTree ? (
+          <div className="project-home__loading" role="status">
+            <span
+              className="project-home__progress-track"
+              role="progressbar"
+              aria-label={`Carregando arquivos Markdown de ${project.info.name}`}
+            >
+              <span className="project-home__progress-bar" />
+            </span>
+            <span>Carregando arquivos de {project.info.name}…</span>
+          </div>
+        ) : project.treeError ? (
+          <div className="project-home__scan-error" role="alert">
+            <p>{project.treeError}</p>
+            <button type="button" className="settings-panel__button" onClick={onRefresh}>Tentar novamente</button>
+          </div>
+        ) : catalog.length > 0 ? (
+          <div className="project-home__file-list">{catalog.map((file) => <button key={file.path} type="button" className="project-home__file" aria-label={`Abrir ${file.name}`} onClick={() => onOpenFile(file)}><span className="project-home__file-name" data-name={file.name} aria-hidden="true" /><small data-path={file.relativePath} aria-hidden="true" /></button>)}</div>
+        ) : <p className="project-home__empty">Nenhum arquivo corresponde ao filtro.</p>}
       </section>
     </section>
   )

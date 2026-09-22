@@ -1,4 +1,4 @@
-import { Columns2, Eye, FolderPlus, Maximize2, Pencil, Search, Settings } from 'lucide-react'
+import { Columns2, Eye, FolderInput, Maximize2, Pencil, Search, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { IconButton } from '../components/ui/IconButton'
 import type { ViewMode } from '../types/project'
@@ -31,8 +31,8 @@ export function ActivityBar({
   return (
     <nav className="activity-bar" aria-label="Barra de atividade">
       <IconButton
-        label="Adicionar projeto (Abrir projeto)"
-        icon={<FolderPlus size={16} aria-hidden="true" />}
+        label="Adicionar projeto"
+        icon={<FolderInput size={16} aria-hidden="true" />}
         onClick={onOpenProject}
         disabled={isOpening}
       />

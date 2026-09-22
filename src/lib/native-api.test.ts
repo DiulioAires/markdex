@@ -1,20 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { nativeApi } from './native-api'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 
 const invokeMock = vi.mocked(invoke)
+const dialogOpenMock = vi.mocked(open)
 
 describe('nativeApi', () => {
-  beforeEach(() => invokeMock.mockReset())
+  beforeEach(() => {
+    invokeMock.mockReset()
+    dialogOpenMock.mockReset()
+  })
 
-  it('openProject invokes open_project with no payload', async () => {
-    invokeMock.mockResolvedValue(null)
+  it('opens the native folder picker asynchronously and authorizes the selected project', async () => {
+    dialogOpenMock.mockResolvedValue('C:\\work')
+    invokeMock.mockResolvedValue({ name: 'work', rootPath: 'C:\\work' })
+
     await nativeApi.openProject()
-    expect(invokeMock).toHaveBeenCalledWith('open_project')
+
+    expect(dialogOpenMock).toHaveBeenCalledWith({ directory: true, multiple: false })
+    expect(invokeMock).toHaveBeenCalledWith('open_project_at', { rootPath: 'C:\\work' })
+  })
+
+  it('does not authorize a project when the folder picker is cancelled', async () => {
+    dialogOpenMock.mockResolvedValue(null)
+
+    await expect(nativeApi.openProject()).resolves.toBeNull()
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('openProjectAt invokes open_project_at with rootPath', async () => {

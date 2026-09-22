@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import type { FileNode, ProjectInfo } from '../types/project'
 
 export interface NativeApi {
@@ -15,7 +16,11 @@ export interface NativeApi {
 }
 
 export const nativeApi: NativeApi = {
-  openProject: () => invoke('open_project'),
+  openProject: async () => {
+    const selectedPath = await open({ directory: true, multiple: false })
+    if (typeof selectedPath !== 'string') return null
+    return invoke('open_project_at', { rootPath: selectedPath })
+  },
 
   openProjectAt: (rootPath) => invoke('open_project_at', { rootPath }),
 

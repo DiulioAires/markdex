@@ -71,7 +71,7 @@ export function ExplorerPanel({
           <span className="explorer-panel__title">{info.name}</span>
         </button>
         <button type="button" className="icon-button" onClick={(event) => { event.stopPropagation(); onCreateFile() }} title="Criar arquivo Markdown" aria-label="Criar arquivo Markdown"><Plus size={16} /></button>
-        <button type="button" className="icon-button" onClick={(event) => { event.stopPropagation(); onCreateDirectory() }} title="Criar pasta" aria-label="Criar pasta"><FolderPlus size={16} /></button>
+        <button type="button" className="icon-button" onClick={(event) => { event.stopPropagation(); onCreateDirectory() }} title="Criar pasta dentro do projeto" aria-label="Criar pasta dentro do projeto"><FolderPlus size={16} aria-hidden="true" /></button>
         <button
           type="button"
           className="icon-button"
@@ -94,10 +94,11 @@ export function ExplorerPanel({
       {isExpanded ? (
         <div className="explorer-panel__body">
           {isLoadingTree ? (
-            <div className="loading-skeleton" role="status" aria-label="Carregando árvore de arquivos">
-              <span className="loading-skeleton__bar" />
-              <span className="loading-skeleton__bar" />
-              <span className="loading-skeleton__bar" />
+            <div className="explorer-panel__loading" role="status" aria-label={`Carregando árvore de ${info.name}`}>
+              <span className="project-home__progress-track" role="progressbar" aria-label={`Carregando arquivos Markdown de ${info.name}`}>
+                <span className="project-home__progress-bar" />
+              </span>
+              <span>Carregando arquivos de {info.name}…</span>
             </div>
           ) : treeError ? (
             <EmptyState

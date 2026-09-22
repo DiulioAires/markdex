@@ -144,11 +144,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     [api, setProjectTree, setProjectTreeError, setProjectTreeLoading],
   )
 
-  const syncOpenProjectTrees = useCallback(async () => {
-    const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
-    await Promise.all(roots.map((rootPath) => refreshTree(rootPath, { background: true })))
-  }, [refreshTree])
-
   const openFile = useCallback(
     async (file: FileNode, rootPath: string) => {
       const existingTab = useWorkspaceStore
@@ -280,7 +275,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     closeProject,
     saveActiveFile,
     syncOpenFiles,
-    syncOpenProjectTrees,
     refreshTree,
     createFile,
     createDirectory,
