@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppShell } from './AppShell'
 import { WelcomeView } from '../features/projects/WelcomeView'
 import { useProjectController } from '../features/projects/use-project-controller'
@@ -10,6 +10,8 @@ import { CommandPalette } from '../features/command-palette/CommandPalette'
 import type { CommandItem } from '../features/command-palette/commands'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import type { NativeApi } from '../lib/native-api'
+import { loadWorkspaceSession, saveWorkspaceSession } from '../features/projects/workspace-session'
+import { toggleWindowMaximized } from '../lib/window-controls'
 
 export interface AppProps {
   api?: NativeApi
@@ -54,7 +56,31 @@ export function App({ api }: AppProps = {}) {
   }
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const restoredSession = useRef(false)
   const visibleError = error && error !== dismissedError ? error : null
+
+  useEffect(() => {
+    let cancelled = false
+    const roots = loadWorkspaceSession().projectRoots
+    void (async () => {
+      for (const rootPath of roots) {
+        if (cancelled) return
+        await openProjectAt(rootPath)
+      }
+      if (!cancelled) {
+        restoredSession.current = true
+        saveWorkspaceSession(useWorkspaceStore.getState().projects.map((project) => project.info.rootPath))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openProjectAt])
+
+  useEffect(() => {
+    if (!restoredSession.current) return
+    saveWorkspaceSession(projects.map((project) => project.info.rootPath))
+  }, [projects])
 
   // Only one overlay (Settings or the Command Palette) may be open at a time: they share the
   // same backdrop and z-index, so two independent booleans could render both simultaneously
@@ -200,6 +226,7 @@ export function App({ api }: AppProps = {}) {
       onSave={() => void saveActiveFile()}
       onOpenCommandPalette={() => setActiveOverlay('command-palette')}
       onOpenSettings={() => setActiveOverlay('settings')}
+      onToggleMaximize={() => void toggleWindowMaximized().catch(() => undefined)}
       explorerSlot={
         <ExplorerColumn
           projects={projects}
