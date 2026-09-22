@@ -7,6 +7,8 @@ Open one or more local folders, browse their Markdown files side by side,
 edit with a CodeMirror-based editor, preview rendered Markdown, and save
 back to disk — all in a small, focused, offline-first app.
 
+Developed by Brazilian friends
+
 ## Download
 
 The current release is [Markdex v1.0.5](https://github.com/DiulioAires/markdex/releases/tag/v1.0.5).
