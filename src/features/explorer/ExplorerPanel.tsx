@@ -16,6 +16,9 @@ export interface ExplorerPanelProps {
   onCreateDirectory?: (parentPath?: string) => void
   onRename?: (node: FileNode) => void
   onDelete?: (node: FileNode) => void
+  onSelect?: () => void
+  onMove?: (targetIndex: number) => void
+  projectIndex?: number
 }
 
 export function ExplorerPanel({
@@ -29,6 +32,9 @@ export function ExplorerPanel({
   onCreateDirectory = () => undefined,
   onRename = () => undefined,
   onDelete = () => undefined,
+  onSelect,
+  onMove,
+  projectIndex,
 }: ExplorerPanelProps) {
   const { info, tree, isExpanded, isLoadingTree, treeError } = project
   const [menu, setMenu] = useState<{ node: FileNode; x: number; y: number } | null>(null)
@@ -39,11 +45,23 @@ export function ExplorerPanel({
 
   return (
     <div className="explorer-panel">
-      <div className="explorer-panel__header">
+      <div
+        className="explorer-panel__header"
+        draggable
+        onClick={() => onSelect?.()}
+        onDragStart={(event) => event.dataTransfer.setData('text/markdex-project-index', String(projectIndex ?? -1))}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault()
+          const sourceIndex = Number(event.dataTransfer.getData('text/markdex-project-index'))
+          if (Number.isInteger(sourceIndex) && sourceIndex !== projectIndex && projectIndex !== undefined) onMove?.(projectIndex)
+        }}
+        title="Arraste para reordenar projetos"
+      >
         <button
           type="button"
           className="explorer-panel__toggle"
-          onClick={onToggleExpand}
+          onClick={(event) => { event.stopPropagation(); onSelect?.(); onToggleExpand() }}
           aria-expanded={isExpanded}
           title={info.rootPath}
         >
@@ -52,12 +70,12 @@ export function ExplorerPanel({
           </span>
           <span className="explorer-panel__title">{info.name}</span>
         </button>
-        <button type="button" className="icon-button" onClick={() => onCreateFile()} title="Criar arquivo Markdown" aria-label="Criar arquivo Markdown"><Plus size={16} /></button>
-        <button type="button" className="icon-button" onClick={() => onCreateDirectory()} title="Criar pasta" aria-label="Criar pasta"><FolderPlus size={16} /></button>
+        <button type="button" className="icon-button" onClick={(event) => { event.stopPropagation(); onCreateFile() }} title="Criar arquivo Markdown" aria-label="Criar arquivo Markdown"><Plus size={16} /></button>
+        <button type="button" className="icon-button" onClick={(event) => { event.stopPropagation(); onCreateDirectory() }} title="Criar pasta dentro do projeto" aria-label="Criar pasta dentro do projeto"><FolderPlus size={16} aria-hidden="true" /></button>
         <button
           type="button"
           className="icon-button"
-          onClick={onRefresh}
+          onClick={(event) => { event.stopPropagation(); onSelect?.(); onRefresh() }}
           title="Atualizar árvore de arquivos"
           aria-label={`Atualizar árvore de ${info.name}`}
         >
@@ -66,7 +84,7 @@ export function ExplorerPanel({
         <button
           type="button"
           className="icon-button"
-          onClick={onClose}
+          onClick={(event) => { event.stopPropagation(); onClose() }}
           title="Fechar projeto"
           aria-label={`Fechar projeto ${info.name}`}
         >
@@ -76,10 +94,11 @@ export function ExplorerPanel({
       {isExpanded ? (
         <div className="explorer-panel__body">
           {isLoadingTree ? (
-            <div className="loading-skeleton" role="status" aria-label="Carregando árvore de arquivos">
-              <span className="loading-skeleton__bar" />
-              <span className="loading-skeleton__bar" />
-              <span className="loading-skeleton__bar" />
+            <div className="explorer-panel__loading" role="status" aria-label={`Carregando árvore de ${info.name}`}>
+              <span className="project-home__progress-track" role="progressbar" aria-label={`Carregando arquivos Markdown de ${info.name}`}>
+                <span className="project-home__progress-bar" />
+              </span>
+              <span>Carregando arquivos de {info.name}…</span>
             </div>
           ) : treeError ? (
             <EmptyState

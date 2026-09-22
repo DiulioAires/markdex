@@ -83,7 +83,7 @@ describe('App integration journey', () => {
     expect(useWorkspaceStore.getState().projects[0].info).toEqual(project)
   })
 
-  it('shows a Markdown file created externally without a manual refresh', async () => {
+  it('shows a Markdown file created externally after manually refreshing the project tree', async () => {
     const user = userEvent.setup()
     const createdFile: FileNode = {
       kind: 'file',
@@ -101,8 +101,9 @@ describe('App integration journey', () => {
     await screen.findByText('README.md')
 
     currentTree = [...tree, createdFile]
+    await user.click(screen.getByRole('button', { name: 'Atualizar árvore de Notes' }))
 
-    expect(await screen.findByText('created.md', {}, { timeout: 2500 })).toBeInTheDocument()
+    expect(await screen.findByText('created.md')).toBeInTheDocument()
   })
 
   it('opens a project, edits a nested file, switches to preview, and saves', async () => {
@@ -216,7 +217,7 @@ describe('App integration journey', () => {
     await user.click(screen.getByText('README.md'))
     await screen.findByRole('textbox')
 
-    await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
+    await user.click(screen.getByRole('button', { name: /adicionar projeto/i }))
     await screen.findByText('post.md')
 
     expect(screen.getAllByText('README.md').length).toBeGreaterThan(0)

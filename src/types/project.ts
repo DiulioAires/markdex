@@ -23,6 +23,7 @@ export interface FileNode {
   path: string
   relativePath: string
   kind: 'file' | 'directory'
+  modifiedAt?: number | null
   children?: FileNode[]
 }
 
