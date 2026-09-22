@@ -29,3 +29,4 @@ jobs:
           releaseBody: Atualização do Markdex.
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
