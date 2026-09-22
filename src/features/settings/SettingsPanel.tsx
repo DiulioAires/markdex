@@ -5,6 +5,7 @@ import type { EditorFontSize } from '../../stores/settings-store'
 
 export interface SettingsPanelProps {
   onClose: () => void
+  onCheckUpdates?: () => void
 }
 
 const FONT_SIZE_OPTIONS: { value: EditorFontSize; label: string }[] = [
@@ -19,9 +20,13 @@ const SHORTCUTS: { keys: string; description: string }[] = [
   { keys: 'Ctrl+Shift+P', description: 'Paleta de comandos' },
 ]
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onCheckUpdates = () => undefined }: SettingsPanelProps) {
   const editorFontSize = useSettingsStore((state) => state.editorFontSize)
   const setEditorFontSize = useSettingsStore((state) => state.setEditorFontSize)
+  const autosaveEnabled = useSettingsStore((state) => state.autosaveEnabled)
+  const setAutosaveEnabled = useSettingsStore((state) => state.setAutosaveEnabled)
+  const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
+  const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -95,6 +100,23 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </section>
 
         <section className="settings-panel__section">
+          <h3 className="settings-panel__section-title">Edição</h3>
+          <label className="settings-panel__checkbox">
+            <input type="checkbox" checked={autosaveEnabled} onChange={(event) => setAutosaveEnabled(event.target.checked)} />
+            <span>Salvar alterações automaticamente</span>
+          </label>
+          <label className="settings-panel__checkbox">
+            <input type="checkbox" checked={automaticUpdates} onChange={(event) => setAutomaticUpdates(event.target.checked)} />
+            <span>Buscar atualizações automaticamente (diariamente)</span>
+          </label>
+        </section>
+
+        <section className="settings-panel__section">
+          <h3 className="settings-panel__section-title">Atualizações</h3>
+          <button type="button" className="settings-panel__button" onClick={onCheckUpdates}>Verificar atualizações</button>
+        </section>
+
+        <section className="settings-panel__section">
           <h3 className="settings-panel__section-title">Atalhos de teclado</h3>
           <ul className="settings-panel__shortcuts">
             {SHORTCUTS.map(({ keys, description }) => (
@@ -109,7 +131,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         <section className="settings-panel__section">
           <h3 className="settings-panel__section-title">Sobre</h3>
           <p className="settings-panel__about-name">Markdex</p>
-          <p className="settings-panel__about-version">Versão 1.0.3</p>
+          <p className="settings-panel__about-version">Versão 1.0.5</p>
           <p className="settings-panel__about-description">
             Um editor para organizar e escrever os arquivos Markdown de um projeto local, com
             autosave e sincronização segura de alterações externas.
