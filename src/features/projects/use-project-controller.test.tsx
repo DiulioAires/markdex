@@ -253,6 +253,26 @@ describe('useProjectController', () => {
     expect(api.listTree).not.toHaveBeenCalled()
   })
 
+  it('refreshes every open project tree when syncing external project state', async () => {
+    const newFile: FileNode = {
+      kind: 'file',
+      name: 'NEW.md',
+      path: 'C:\\work\\NEW.md',
+      relativePath: 'NEW.md',
+    }
+    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockResolvedValueOnce([readme, newFile])
+    const api = createFakeApi({ listTree })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+      await result.current.syncOpenProjectTrees()
+    })
+
+    expect(useWorkspaceStore.getState().projects[0].tree).toEqual([readme, newFile])
+    expect(listTree).toHaveBeenCalledTimes(2)
+  })
+
   it('opens a file by reading it once, and reuses the tab on a second open', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))

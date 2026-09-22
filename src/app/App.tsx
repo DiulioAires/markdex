@@ -23,6 +23,7 @@ export function App({ api }: AppProps = {}) {
     closeProject,
     saveActiveFile,
     syncOpenFiles,
+    syncOpenProjectTrees,
     refreshTree,
     status,
     error,
@@ -149,11 +150,15 @@ export function App({ api }: AppProps = {}) {
   }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, saveActiveFile])
 
   useEffect(() => {
-    if (tabs.length === 0) return
+    if (tabs.length === 0 && projects.length === 0) return
     void syncOpenFiles()
-    const timer = window.setInterval(() => void syncOpenFiles(), 1000)
+    void syncOpenProjectTrees()
+    const timer = window.setInterval(() => {
+      void syncOpenFiles()
+      void syncOpenProjectTrees()
+    }, 1000)
     return () => window.clearInterval(timer)
-  }, [tabs.length, syncOpenFiles])
+  }, [projects.length, tabs.length, syncOpenFiles, syncOpenProjectTrees])
 
   if (projects.length === 0) {
     return (

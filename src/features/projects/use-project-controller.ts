@@ -112,10 +112,10 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
 
   const refreshTree = useCallback(
     async (rootPath: string) => {
-      const exists = useWorkspaceStore
+      const project = useWorkspaceStore
         .getState()
-        .projects.some((entry) => entry.info.rootPath === rootPath)
-      if (!exists) {
+        .projects.find((entry) => entry.info.rootPath === rootPath)
+      if (!project || project.isLoadingTree) {
         return
       }
 
@@ -132,6 +132,11 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     },
     [api, setProjectTree, setProjectTreeError, setProjectTreeLoading],
   )
+
+  const syncOpenProjectTrees = useCallback(async () => {
+    const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
+    await Promise.all(roots.map((rootPath) => refreshTree(rootPath)))
+  }, [refreshTree])
 
   const openFile = useCallback(
     async (file: FileNode, rootPath: string) => {
@@ -210,6 +215,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     closeProject,
     saveActiveFile,
     syncOpenFiles,
+    syncOpenProjectTrees,
     refreshTree,
     status,
     error,

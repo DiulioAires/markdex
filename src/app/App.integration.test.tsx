@@ -83,6 +83,28 @@ describe('App integration journey', () => {
     expect(useWorkspaceStore.getState().projects[0].info).toEqual(project)
   })
 
+  it('shows a Markdown file created externally without a manual refresh', async () => {
+    const user = userEvent.setup()
+    const createdFile: FileNode = {
+      kind: 'file',
+      name: 'created.md',
+      path: 'C:\\projects\\notes\\created.md',
+      relativePath: 'created.md',
+    }
+    let currentTree = tree
+    const api = createInMemoryApi({
+      listTree: vi.fn().mockImplementation(async () => currentTree),
+    })
+
+    render(<App api={api} />)
+    await user.click(screen.getByRole('button', { name: /abrir projeto/i }))
+    await screen.findByText('README.md')
+
+    currentTree = [...tree, createdFile]
+
+    expect(await screen.findByText('created.md', {}, { timeout: 2500 })).toBeInTheDocument()
+  })
+
   it('opens a project, edits a nested file, switches to preview, and saves', async () => {
     const user = userEvent.setup()
     const api = createInMemoryApi()
@@ -180,10 +202,9 @@ describe('App integration journey', () => {
         .fn()
         .mockResolvedValueOnce(project)
         .mockResolvedValueOnce(secondProject),
-      listTree: vi
-        .fn()
-        .mockResolvedValueOnce(tree)
-        .mockResolvedValueOnce([postNode]),
+      listTree: vi.fn(async (rootPath: string) =>
+        rootPath === project.rootPath ? tree : [postNode],
+      ),
       readFile: vi.fn().mockResolvedValue('# Post'),
     })
 
