@@ -27,6 +27,12 @@ export function SettingsPanel({ onClose, onCheckUpdates = () => undefined }: Set
   const setAutosaveEnabled = useSettingsStore((state) => state.setAutosaveEnabled)
   const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
   const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
+  const sessionStartupMode = useSettingsStore((state) => state.sessionStartupMode)
+  const setSessionStartupMode = useSettingsStore((state) => state.setSessionStartupMode)
+  const startupProject = useSettingsStore((state) => state.startupProject)
+  const setStartupProject = useSettingsStore((state) => state.setStartupProject)
+  const showRecentFiles = useSettingsStore((state) => state.showRecentFiles)
+  const setShowRecentFiles = useSettingsStore((state) => state.setShowRecentFiles)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -97,6 +103,25 @@ export function SettingsPanel({ onClose, onCheckUpdates = () => undefined }: Set
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="settings-panel__section">
+          <h3 className="settings-panel__section-title">Inicialização</h3>
+          <span className="settings-panel__label">Sessão ao iniciar</span>
+          <div className="settings-panel__button-group settings-panel__button-group--stacked" role="group" aria-label="Sessão ao iniciar">
+            <button type="button" aria-pressed={sessionStartupMode === 'ask'} className={sessionStartupMode === 'ask' ? 'settings-panel__button settings-panel__button--active' : 'settings-panel__button'} onClick={() => setSessionStartupMode('ask')}>Perguntar ao abrir</button>
+            <button type="button" aria-pressed={sessionStartupMode === 'restore'} className={sessionStartupMode === 'restore' ? 'settings-panel__button settings-panel__button--active' : 'settings-panel__button'} onClick={() => setSessionStartupMode('restore')}>Restaurar automaticamente</button>
+            <button type="button" aria-pressed={sessionStartupMode === 'empty'} className={sessionStartupMode === 'empty' ? 'settings-panel__button settings-panel__button--active' : 'settings-panel__button'} onClick={() => setSessionStartupMode('empty')}>Iniciar vazio</button>
+          </div>
+          <span className="settings-panel__label">Projeto inicial</span>
+          <div className="settings-panel__button-group" role="group" aria-label="Projeto inicial">
+            <button type="button" aria-pressed={startupProject === 'first'} className={startupProject === 'first' ? 'settings-panel__button settings-panel__button--active' : 'settings-panel__button'} onClick={() => setStartupProject('first')}>Primeiro projeto</button>
+            <button type="button" aria-pressed={startupProject === 'last'} className={startupProject === 'last' ? 'settings-panel__button settings-panel__button--active' : 'settings-panel__button'} onClick={() => setStartupProject('last')}>Último projeto</button>
+          </div>
+          <label className="settings-panel__checkbox">
+            <input type="checkbox" checked={showRecentFiles} onChange={(event) => setShowRecentFiles(event.target.checked)} />
+            Mostrar editados recentemente
+          </label>
         </section>
 
         <section className="settings-panel__section">

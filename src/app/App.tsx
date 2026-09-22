@@ -10,10 +10,15 @@ import { CommandPalette } from '../features/command-palette/CommandPalette'
 import type { CommandItem } from '../features/command-palette/commands'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import type { NativeApi } from '../lib/native-api'
-import { loadWorkspaceSession, saveWorkspaceSession } from '../features/projects/workspace-session'
+import { readSession, writeSession } from '../stores/session-store'
+import { flattenMarkdownFiles } from '../features/projects/file-catalog'
+import { ProjectHome } from '../features/projects/ProjectHome'
+import { SessionRestorePrompt } from '../features/projects/SessionRestorePrompt'
+import type { PersistedSession } from '../stores/session-store'
 import { toggleWindowMaximized } from '../lib/window-controls'
 import { useSettingsStore } from '../stores/settings-store'
 import { findUpdate, installUpdate } from '../features/updates/update-service'
+import { listen } from '@tauri-apps/api/event'
 
 export interface AppProps {
   api?: NativeApi
@@ -27,7 +32,6 @@ export function App({ api }: AppProps = {}) {
     closeProject,
     saveActiveFile,
     syncOpenFiles,
-    syncOpenProjectTrees,
     refreshTree,
     createFile,
     createDirectory,
@@ -42,9 +46,14 @@ export function App({ api }: AppProps = {}) {
   const viewMode = useWorkspaceStore((state) => state.viewMode)
   const setViewMode = useWorkspaceStore((state) => state.setViewMode)
   const closeTab = useWorkspaceStore((state) => state.closeTab)
+  const activeProjectRootPath = useWorkspaceStore((state) => state.activeProjectRootPath)
+  const setActiveProject = useWorkspaceStore((state) => state.setActiveProject)
+  const moveProject = useWorkspaceStore((state) => state.moveProject)
   const autosaveEnabled = useSettingsStore((state) => state.autosaveEnabled)
   const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
   const lastUpdateCheckAt = useSettingsStore((state) => state.lastUpdateCheckAt)
+  const sessionStartupMode = useSettingsStore((state) => state.sessionStartupMode)
+  const startupProject = useSettingsStore((state) => state.startupProject)
   const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
   const setLastUpdateCheckAt = useSettingsStore((state) => state.setLastUpdateCheckAt)
 
@@ -52,7 +61,8 @@ export function App({ api }: AppProps = {}) {
   const activeTab = tabs.find((tab) => tab.path === activeTabPath) ?? null
   const activeProject = activeTab
     ? projects.find((entry) => entry.info.rootPath === activeTab.rootPath) ?? null
-    : null
+    : projects.find((entry) => entry.info.rootPath === activeProjectRootPath) ??
+      (startupProject === 'last' ? projects[projects.length - 1] : projects[0]) ?? null
   const statusBarProjectName =
     activeProject?.info.name ?? (projects.length === 1 ? projects[0].info.name : null)
 
@@ -63,8 +73,42 @@ export function App({ api }: AppProps = {}) {
   }
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
-  const restoredSession = useRef(false)
+  const startupHandled = useRef(false)
+  const startupPending = useRef(false)
+  const pendingSession = useRef<PersistedSession | null>(null)
+  const sessionHydrated = useRef(false)
+  const [sessionPromptOpen, setSessionPromptOpen] = useState(false)
+  const [isRestoringSession, setIsRestoringSession] = useState(false)
   const visibleError = error && error !== dismissedError ? error : null
+
+  const restoreSession = useCallback(async (session: PersistedSession) => {
+    setIsRestoringSession(true)
+    startupPending.current = true
+    for (const project of session.projects) {
+      await openProjectAt(project.rootPath)
+    }
+    const state = useWorkspaceStore.getState()
+    const preferredRootPath = startupProject === 'first'
+      ? state.projects[0]?.info.rootPath
+      : state.projects.find((project) => project.info.rootPath === session.activeProjectRootPath)?.info.rootPath
+        ?? state.projects[state.projects.length - 1]?.info.rootPath
+    if (preferredRootPath) setActiveProject(preferredRootPath)
+    if (session.activeFilePath && session.activeProjectRootPath === preferredRootPath) {
+      const project = state.projects.find((entry) => entry.info.rootPath === preferredRootPath)
+      const file = project ? flattenMarkdownFiles(project.tree).find((candidate) => candidate.path === session.activeFilePath) : null
+      if (file && project) await openFile(file, project.info.rootPath)
+    }
+    startupPending.current = false
+    sessionHydrated.current = true
+    setSessionPromptOpen(false)
+    setIsRestoringSession(false)
+    const restoredState = useWorkspaceStore.getState()
+    writeSession({
+      projects: restoredState.projects.map((project) => project.info),
+      activeProjectRootPath: preferredRootPath ?? null,
+      activeFilePath: restoredState.activeTabPath,
+    })
+  }, [openFile, openProjectAt, setActiveProject, startupProject])
 
   const checkForUpdates = useCallback(async (manual = false) => {
     const day = 24 * 60 * 60 * 1000
@@ -89,27 +133,42 @@ export function App({ api }: AppProps = {}) {
   }, [checkForUpdates])
 
   useEffect(() => {
-    let cancelled = false
-    const roots = loadWorkspaceSession().projectRoots
-    void (async () => {
-      for (const rootPath of roots) {
-        if (cancelled) return
-        await openProjectAt(rootPath)
-      }
-      if (!cancelled) {
-        restoredSession.current = true
-        saveWorkspaceSession(useWorkspaceStore.getState().projects.map((project) => project.info.rootPath))
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (startupHandled.current) return
+    startupHandled.current = true
+    const session = readSession()
+    if (session.projects.length === 0) {
+      sessionHydrated.current = true
+      return
     }
-  }, [openProjectAt])
+    if (sessionStartupMode === 'empty') return
+    if (sessionStartupMode === 'ask') {
+      startupPending.current = true
+      pendingSession.current = session
+      setSessionPromptOpen(true)
+      return
+    }
+    void restoreSession(session)
+  }, [restoreSession, sessionStartupMode])
+
+  const handleRestoreSession = () => {
+    const session = pendingSession.current
+    if (!session) return
+    pendingSession.current = null
+    void restoreSession(session)
+  }
+
+  const handleStartEmpty = () => {
+    pendingSession.current = null
+    startupPending.current = false
+    setSessionPromptOpen(false)
+  }
 
   useEffect(() => {
-    if (!restoredSession.current) return
-    saveWorkspaceSession(projects.map((project) => project.info.rootPath))
-  }, [projects])
+    if (startupPending.current) return
+    if (!sessionHydrated.current && projects.length > 0) sessionHydrated.current = true
+    if (!sessionHydrated.current) return
+    writeSession({ projects: projects.map((project) => project.info), activeProjectRootPath: activeProject?.info.rootPath ?? null, activeFilePath: activeTabPath })
+  }, [activeProject?.info.rootPath, activeTabPath, projects])
 
   // Only one overlay (Settings or the Command Palette) may be open at a time: they share the
   // same backdrop and z-index, so two independent booleans could render both simultaneously
@@ -215,19 +274,45 @@ export function App({ api }: AppProps = {}) {
   }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, autosaveEnabled, saveActiveFile])
 
   useEffect(() => {
-    if (tabs.length === 0 && projects.length === 0) return
-    void syncOpenFiles()
-    void syncOpenProjectTrees()
-    const timer = window.setInterval(() => {
-      void syncOpenFiles()
-      void syncOpenProjectTrees()
-    }, 1000)
-    return () => window.clearInterval(timer)
-  }, [projects.length, tabs.length, syncOpenFiles, syncOpenProjectTrees])
+    if (projects.length === 0) return
+    let cancelled = false
+    let stopListening: (() => void) | null = null
+    const pendingChanges = new Map<string, { timer: number; treeChanged: boolean; filesChanged: boolean }>()
+    void listen<{ rootPath: string; treeChanged: boolean; filesChanged: boolean }>(
+        'project-files-changed',
+        ({ payload }) => {
+          const { rootPath } = payload
+          const previous = pendingChanges.get(rootPath)
+          if (previous) window.clearTimeout(previous.timer)
+          const change = {
+            treeChanged: payload.treeChanged || previous?.treeChanged === true,
+            filesChanged: payload.filesChanged || previous?.filesChanged === true,
+          }
+          const timer = window.setTimeout(() => {
+            pendingChanges.delete(rootPath)
+            if (change.treeChanged) void refreshTree(rootPath, { background: true })
+            if (change.filesChanged) void syncOpenFiles(rootPath)
+          }, 300)
+          pendingChanges.set(rootPath, { timer, ...change })
+        },
+    ).then((unlisten) => {
+      stopListening = unlisten
+      if (cancelled) unlisten()
+    }).catch(() => {
+      // In browser-based previews, the native event bridge is unavailable.
+    })
+
+    return () => {
+      cancelled = true
+      pendingChanges.forEach(({ timer }) => window.clearTimeout(timer))
+      stopListening?.()
+    }
+  }, [projects.length, refreshTree, syncOpenFiles])
 
   if (projects.length === 0) {
     return (
       <>
+        {sessionPromptOpen ? <SessionRestorePrompt isRestoring={isRestoringSession} onRestore={handleRestoreSession} onStartEmpty={handleStartEmpty} /> : null}
         <WelcomeView
           onOpenProject={() => void openProject()}
           isOpening={isOpening}
@@ -242,6 +327,7 @@ export function App({ api }: AppProps = {}) {
   }
 
   return (
+    <>
     <AppShell
       viewMode={viewMode}
       onSelectViewMode={setViewMode}
@@ -264,6 +350,8 @@ export function App({ api }: AppProps = {}) {
           onToggleExpand={(rootPath) => useWorkspaceStore.getState().toggleProjectExpanded(rootPath)}
           onRefresh={(rootPath) => void refreshTree(rootPath)}
           onClose={(rootPath) => void closeProject(rootPath)}
+          onMoveProject={(rootPath, targetIndex) => moveProject(rootPath, targetIndex)}
+          onSelectProject={setActiveProject}
           onCreateFile={(rootPath, parentPath) => {
             const path = askEntryName(parentPath ?? rootPath, false)
             if (path) void createFile(rootPath, path)
@@ -293,12 +381,7 @@ export function App({ api }: AppProps = {}) {
               <span className="loading-skeleton__bar" />
             </div>
           ) : null}
-          <EditorWorkspace
-            tabs={tabs}
-            activeTab={activeTab}
-            activeTabPath={activeTabPath}
-            projects={projects}
-          />
+          {activeTab ? <EditorWorkspace tabs={tabs} activeTab={activeTab} activeTabPath={activeTabPath} projects={projects} /> : activeProject ? <ProjectHome project={activeProject} onOpenFile={(file) => void openFile(file, activeProject.info.rootPath)} onRefresh={() => void refreshTree(activeProject.info.rootPath)} /> : <p className="workspace-placeholder">Selecione um arquivo para começar a editar.</p>}
         </>
       }
       toastSlot={
@@ -311,5 +394,7 @@ export function App({ api }: AppProps = {}) {
         ) : null
       }
     />
+    {sessionPromptOpen ? <SessionRestorePrompt isRestoring={isRestoringSession} onRestore={handleRestoreSession} onStartEmpty={handleStartEmpty} /> : null}
+    </>
   )
 }

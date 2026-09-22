@@ -14,6 +14,12 @@ const readme: FileNode = {
   path: 'C:\\work\\README.md',
   relativePath: 'README.md',
 }
+const otherReadme: FileNode = {
+  kind: 'file',
+  name: 'OTHER.md',
+  path: 'C:\\other\\OTHER.md',
+  relativePath: 'OTHER.md',
+}
 
 function createFakeApi(overrides: Partial<NativeApi> = {}): NativeApi {
   return {
@@ -51,6 +57,19 @@ describe('useProjectController', () => {
     expect(result.current.error).toBeNull()
   })
 
+  it('ends the loading state and records an error when a project tree scan fails', async () => {
+    const api = createFakeApi({ listTree: vi.fn().mockRejectedValue(new Error('Falha ao listar subpasta')) })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+
+    const entry = useWorkspaceStore.getState().projects[0]
+    expect(entry.isLoadingTree).toBe(false)
+    expect(entry.treeError).toBe('Falha ao listar subpasta')
+  })
+
   it('opening the same project twice does not duplicate it or re-fetch its tree', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))
@@ -84,6 +103,29 @@ describe('useProjectController', () => {
 
     const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
     expect(roots).toEqual([project.rootPath, otherProject.rootPath])
+  })
+
+  it('loads each project tree into its own project entry', async () => {
+    const api = createFakeApi({
+      openProject: vi
+        .fn()
+        .mockResolvedValueOnce(project)
+        .mockResolvedValueOnce(otherProject),
+      listTree: vi.fn().mockImplementation(async (rootPath: string) =>
+        rootPath === project.rootPath ? [readme] : [otherReadme],
+      ),
+    })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+      await result.current.openProject()
+    })
+
+    expect(useWorkspaceStore.getState().projects.map((entry) => entry.tree)).toEqual([
+      [readme],
+      [otherReadme],
+    ])
   })
 
   it('does not store a project or tree when the user cancels the dialog', async () => {
@@ -251,53 +293,6 @@ describe('useProjectController', () => {
     })
 
     expect(api.listTree).not.toHaveBeenCalled()
-  })
-
-  it('refreshes every open project tree when syncing external project state', async () => {
-    const newFile: FileNode = {
-      kind: 'file',
-      name: 'NEW.md',
-      path: 'C:\\work\\NEW.md',
-      relativePath: 'NEW.md',
-    }
-    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockResolvedValueOnce([readme, newFile])
-    const api = createFakeApi({ listTree })
-    const { result } = renderHook(() => useProjectController(api))
-
-    await act(async () => {
-      await result.current.openProject()
-      await result.current.syncOpenProjectTrees()
-    })
-
-    expect(useWorkspaceStore.getState().projects[0].tree).toEqual([readme, newFile])
-    expect(listTree).toHaveBeenCalledTimes(2)
-  })
-
-  it('keeps the current tree visible while syncing it in the background', async () => {
-    let resolveRefresh!: (tree: FileNode[]) => void
-    const refreshPromise = new Promise<FileNode[]>((resolve) => {
-      resolveRefresh = resolve
-    })
-    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockReturnValueOnce(refreshPromise)
-    const api = createFakeApi({ listTree })
-    const { result } = renderHook(() => useProjectController(api))
-
-    await act(async () => {
-      await result.current.openProject()
-    })
-
-    let syncPromise!: Promise<void>
-    act(() => {
-      syncPromise = result.current.syncOpenProjectTrees()
-    })
-
-    expect(useWorkspaceStore.getState().projects[0].isLoadingTree).toBe(false)
-    expect(useWorkspaceStore.getState().projects[0].tree).toEqual([readme])
-
-    resolveRefresh([readme])
-    await act(async () => {
-      await syncPromise
-    })
   })
 
   it('opens a file by reading it once, and reuses the tab on a second open', async () => {
