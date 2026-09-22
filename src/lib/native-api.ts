@@ -7,10 +7,6 @@ export interface NativeApi {
   listTree(rootPath: string): Promise<FileNode[]>
   readFile(rootPath: string, filePath: string): Promise<string>
   writeFile(rootPath: string, filePath: string, content: string): Promise<void>
-  createFile?(rootPath: string, filePath: string): Promise<void>
-  createDirectory?(rootPath: string, directoryPath: string): Promise<void>
-  renameEntry?(rootPath: string, oldPath: string, newPath: string): Promise<void>
-  deleteEntry?(rootPath: string, entryPath: string): Promise<void>
   closeProject(rootPath: string): Promise<void>
 }
 
@@ -26,18 +22,6 @@ export const nativeApi: NativeApi = {
 
   writeFile: (rootPath, filePath, content) =>
     invoke('write_markdown_file', { rootPath, filePath, content }),
-
-  createFile: (rootPath, filePath) =>
-    invoke('create_markdown_file', { rootPath, filePath }),
-
-  createDirectory: (rootPath, directoryPath) =>
-    invoke('create_directory', { rootPath, directoryPath }),
-
-  renameEntry: (rootPath, oldPath, newPath) =>
-    invoke('rename_entry', { rootPath, oldPath, newPath }),
-
-  deleteEntry: (rootPath, entryPath) =>
-    invoke('delete_entry', { rootPath, entryPath }),
 
   closeProject: (rootPath) => invoke('close_project', { rootPath }),
 }

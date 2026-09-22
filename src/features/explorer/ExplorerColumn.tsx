@@ -8,10 +8,6 @@ export interface ExplorerColumnProps {
   onToggleExpand: (rootPath: string) => void
   onRefresh: (rootPath: string) => void
   onClose: (rootPath: string) => void
-  onCreateFile?: (rootPath: string, parentPath?: string) => void
-  onCreateDirectory?: (rootPath: string, parentPath?: string) => void
-  onRename?: (rootPath: string, node: FileNode) => void
-  onDelete?: (rootPath: string, node: FileNode) => void
 }
 
 export function ExplorerColumn({
@@ -21,10 +17,6 @@ export function ExplorerColumn({
   onToggleExpand,
   onRefresh,
   onClose,
-  onCreateFile = () => undefined,
-  onCreateDirectory = () => undefined,
-  onRename = () => undefined,
-  onDelete = () => undefined,
 }: ExplorerColumnProps) {
   return (
     <div className="explorer-column">
@@ -37,10 +29,6 @@ export function ExplorerColumn({
           onToggleExpand={() => onToggleExpand(project.info.rootPath)}
           onRefresh={() => onRefresh(project.info.rootPath)}
           onClose={() => onClose(project.info.rootPath)}
-          onCreateFile={(parentPath) => onCreateFile(project.info.rootPath, parentPath)}
-          onCreateDirectory={(parentPath) => onCreateDirectory(project.info.rootPath, parentPath)}
-          onRename={(node) => onRename(project.info.rootPath, node)}
-          onDelete={(node) => onDelete(project.info.rootPath, node)}
         />
       ))}
     </div>

@@ -29,8 +29,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   const markSaved = useWorkspaceStore((state) => state.markSaved)
   const updateExternalContent = useWorkspaceStore((state) => state.updateExternalContent)
   const markExternalConflict = useWorkspaceStore((state) => state.markExternalConflict)
-  const renamePath = useWorkspaceStore((state) => state.renamePath)
-  const closeTabsUnderPath = useWorkspaceStore((state) => state.closeTabsUnderPath)
 
   const registerProject = useCallback(
     async (info: ProjectInfo) => {
@@ -216,56 +214,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     )
   }, [api, markExternalConflict, updateExternalContent])
 
-  const createFile = useCallback(async (rootPath: string, filePath: string) => {
-    try {
-      if (!api.createFile) throw new Error('Criação de arquivos não está disponível.')
-      await api.createFile(rootPath, filePath)
-      await refreshTree(rootPath)
-      return true
-    } catch (caughtError) {
-      setError(errorMessage(caughtError))
-      return false
-    }
-  }, [api, refreshTree])
-
-  const createDirectory = useCallback(async (rootPath: string, directoryPath: string) => {
-    try {
-      if (!api.createDirectory) throw new Error('Criação de pastas não está disponível.')
-      await api.createDirectory(rootPath, directoryPath)
-      await refreshTree(rootPath)
-      return true
-    } catch (caughtError) {
-      setError(errorMessage(caughtError))
-      return false
-    }
-  }, [api, refreshTree])
-
-  const renameEntry = useCallback(async (rootPath: string, oldPath: string, newPath: string) => {
-    try {
-      if (!api.renameEntry) throw new Error('Renomeação não está disponível.')
-      await api.renameEntry(rootPath, oldPath, newPath)
-      renamePath(oldPath, newPath)
-      await refreshTree(rootPath)
-      return true
-    } catch (caughtError) {
-      setError(errorMessage(caughtError))
-      return false
-    }
-  }, [api, refreshTree, renamePath])
-
-  const deleteEntry = useCallback(async (rootPath: string, entryPath: string) => {
-    try {
-      if (!api.deleteEntry) throw new Error('Exclusão não está disponível.')
-      await api.deleteEntry(rootPath, entryPath)
-      closeTabsUnderPath(entryPath)
-      await refreshTree(rootPath)
-      return true
-    } catch (caughtError) {
-      setError(errorMessage(caughtError))
-      return false
-    }
-  }, [api, closeTabsUnderPath, refreshTree])
-
   return {
     openProject,
     openProjectAt,
@@ -275,10 +223,6 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     syncOpenFiles,
     syncOpenProjectTrees,
     refreshTree,
-    createFile,
-    createDirectory,
-    renameEntry,
-    deleteEntry,
     status,
     error,
   }

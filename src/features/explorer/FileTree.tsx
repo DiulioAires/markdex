@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type React from 'react'
 import type { FileNode } from '../../types/project'
 
 const INDENT_STEP_PX = 16
@@ -8,10 +7,9 @@ export interface FileTreeProps {
   nodes: FileNode[]
   activeFilePath: string | null
   onOpenFile: (file: FileNode) => void
-  onContextMenu?: (event: React.MouseEvent, node: FileNode) => void
 }
 
-export function FileTree({ nodes, activeFilePath, onOpenFile, onContextMenu = () => undefined }: FileTreeProps) {
+export function FileTree({ nodes, activeFilePath, onOpenFile }: FileTreeProps) {
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({})
 
   function toggleExpanded(path: string) {
@@ -26,7 +24,7 @@ export function FileTree({ nodes, activeFilePath, onOpenFile, onContextMenu = ()
       const hasChildren = Boolean(node.children && node.children.length > 0)
 
       return (
-        <li key={node.path} role="treeitem" aria-expanded={isExpanded} onContextMenu={(event) => onContextMenu(event, node)}>
+        <li key={node.path} role="treeitem" aria-expanded={isExpanded}>
           <button
             type="button"
             className="file-tree__node file-tree__node--directory"
@@ -55,7 +53,6 @@ export function FileTree({ nodes, activeFilePath, onOpenFile, onContextMenu = ()
         key={node.path}
         role="treeitem"
         aria-current={isActive ? 'page' : undefined}
-        onContextMenu={(event) => onContextMenu(event, node)}
       >
         <button
           type="button"

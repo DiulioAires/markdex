@@ -12,10 +12,6 @@ pub fn run() {
             commands::files::list_markdown_tree,
             commands::files::read_markdown_file,
             commands::files::write_markdown_file,
-            commands::files::create_markdown_file,
-            commands::files::create_directory,
-            commands::files::rename_entry,
-            commands::files::delete_entry,
             commands::files::close_project,
         ])
         .setup(|app| {

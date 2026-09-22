@@ -1,4 +1,4 @@
-import { Columns2, Eye, FolderOpen, Maximize2, Pencil, Search, Settings } from 'lucide-react'
+import { Columns2, Eye, FolderOpen, Pencil, Search, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { IconButton } from '../components/ui/IconButton'
 import type { ViewMode } from '../types/project'
@@ -10,7 +10,6 @@ export interface ActivityBarProps {
   isOpening: boolean
   onOpenCommandPalette?: () => void
   onOpenSettings?: () => void
-  onToggleMaximize?: () => void
 }
 
 const VIEW_MODES: { mode: ViewMode; label: string; icon: ReactNode }[] = [
@@ -26,7 +25,6 @@ export function ActivityBar({
   isOpening,
   onOpenCommandPalette,
   onOpenSettings,
-  onToggleMaximize,
 }: ActivityBarProps) {
   return (
     <nav className="activity-bar" aria-label="Barra de atividade">
@@ -51,11 +49,6 @@ export function ActivityBar({
         label="Paleta de comandos (Ctrl+Shift+P)"
         icon={<Search size={16} aria-hidden="true" />}
         onClick={onOpenCommandPalette}
-      />
-      <IconButton
-        label="Maximizar ou restaurar janela"
-        icon={<Maximize2 size={16} aria-hidden="true" />}
-        onClick={onToggleMaximize}
       />
       <IconButton
         label="Configurações"
