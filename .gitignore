@@ -14,3 +14,5 @@ docs/superpowers/
 .agents/
 skills/
 **/SKILL.md
+.tauri-signing.key
+.tauri-signing.key.pub

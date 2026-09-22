@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Markdex",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "identifier": "com.diulioaires.markdex",
   "build": {
     "frontendDist": "../dist",
@@ -36,6 +36,14 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCNzQ4RTE0N0VCQzY4NjAKUldSZ2FMeCtGSTUweThITndzREpTL040TjVUbzRNTk9iMUJzOW1hRjFDRlk5c0RoTGFuZS8K",
+      "endpoints": [
+        "https://github.com/DiulioAires/markdex/releases/latest/download/latest.json"
+      ]
     }
   }
 }

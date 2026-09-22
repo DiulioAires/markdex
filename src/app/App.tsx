@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppShell } from './AppShell'
 import { WelcomeView } from '../features/projects/WelcomeView'
 import { useProjectController } from '../features/projects/use-project-controller'
@@ -12,6 +12,8 @@ import { useWorkspaceStore } from '../stores/workspace-store'
 import type { NativeApi } from '../lib/native-api'
 import { loadWorkspaceSession, saveWorkspaceSession } from '../features/projects/workspace-session'
 import { toggleWindowMaximized } from '../lib/window-controls'
+import { useSettingsStore } from '../stores/settings-store'
+import { findUpdate, installUpdate } from '../features/updates/update-service'
 
 export interface AppProps {
   api?: NativeApi
@@ -40,6 +42,11 @@ export function App({ api }: AppProps = {}) {
   const viewMode = useWorkspaceStore((state) => state.viewMode)
   const setViewMode = useWorkspaceStore((state) => state.setViewMode)
   const closeTab = useWorkspaceStore((state) => state.closeTab)
+  const autosaveEnabled = useSettingsStore((state) => state.autosaveEnabled)
+  const automaticUpdates = useSettingsStore((state) => state.automaticUpdates)
+  const lastUpdateCheckAt = useSettingsStore((state) => state.lastUpdateCheckAt)
+  const setAutomaticUpdates = useSettingsStore((state) => state.setAutomaticUpdates)
+  const setLastUpdateCheckAt = useSettingsStore((state) => state.setLastUpdateCheckAt)
 
   const isOpening = status === 'opening-project'
   const activeTab = tabs.find((tab) => tab.path === activeTabPath) ?? null
@@ -58,6 +65,28 @@ export function App({ api }: AppProps = {}) {
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const restoredSession = useRef(false)
   const visibleError = error && error !== dismissedError ? error : null
+
+  const checkForUpdates = useCallback(async (manual = false) => {
+    const day = 24 * 60 * 60 * 1000
+    if (!manual && (!automaticUpdates || (lastUpdateCheckAt !== null && Date.now() - lastUpdateCheckAt < day))) return
+    setLastUpdateCheckAt(Date.now())
+    const update = await findUpdate()
+    if (!update) {
+      if (manual) window.alert('Você já está usando a versão mais recente.')
+      return
+    }
+    if (!window.confirm(`A versão ${update.version} está disponível. Deseja baixar e instalar agora?`)) return
+    if (window.confirm('Deseja ativar a busca automática diária por atualizações?')) setAutomaticUpdates(true)
+    try {
+      await installUpdate(update)
+    } catch (caughtError) {
+      window.alert(caughtError instanceof Error ? caughtError.message : String(caughtError))
+    }
+  }, [automaticUpdates, lastUpdateCheckAt, setAutomaticUpdates, setLastUpdateCheckAt])
+
+  useEffect(() => {
+    void checkForUpdates()
+  }, [checkForUpdates])
 
   useEffect(() => {
     let cancelled = false
@@ -178,12 +207,12 @@ export function App({ api }: AppProps = {}) {
   }, [openProject, saveActiveFile, isOpening])
 
   useEffect(() => {
-    if (!activeTab?.isDirty) return
+    if (!autosaveEnabled || !activeTab?.isDirty) return
     const timer = window.setTimeout(() => {
       void saveActiveFile(true)
     }, 1000)
     return () => window.clearTimeout(timer)
-  }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, saveActiveFile])
+  }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, autosaveEnabled, saveActiveFile])
 
   useEffect(() => {
     if (tabs.length === 0 && projects.length === 0) return
@@ -204,7 +233,7 @@ export function App({ api }: AppProps = {}) {
           isOpening={isOpening}
           onOpenRecentProject={(rootPath) => void openProjectAt(rootPath)}
         />
-        {isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} /> : null}
+        {isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} onCheckUpdates={() => void checkForUpdates(true)} /> : null}
         {isCommandPaletteOpen ? (
           <CommandPalette items={commandItems} onClose={() => closeOverlayIfActive('command-palette')} />
         ) : null}
@@ -275,7 +304,7 @@ export function App({ api }: AppProps = {}) {
       toastSlot={
         visibleError ? <Toast message={visibleError} onDismiss={() => setDismissedError(error)} /> : null
       }
-      settingsSlot={isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} /> : null}
+      settingsSlot={isSettingsOpen ? <SettingsPanel onClose={() => closeOverlayIfActive('settings')} onCheckUpdates={() => void checkForUpdates(true)} /> : null}
       commandPaletteSlot={
         isCommandPaletteOpen ? (
           <CommandPalette items={commandItems} onClose={() => closeOverlayIfActive('command-palette')} />

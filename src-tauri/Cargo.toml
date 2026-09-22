@@ -1,6 +1,6 @@
 [package]
 name = "markdex"
-version = "1.0.4"
+version = "1.0.5"
 description = "Markdex, a desktop Markdown project manager"
 authors = ["Diulio Aires"]
 license = "MIT"
@@ -26,6 +26,8 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 cap-std = "4"
 cap-fs-ext = "4"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [dev-dependencies]
 tempfile = "3"
