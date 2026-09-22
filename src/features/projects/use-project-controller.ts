@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { nativeApi as defaultNativeApi, type NativeApi } from '../../lib/native-api'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { addRecentProject, removeRecentProject } from './recent-projects'
+import { recordRecentFile } from './recent-files'
 import type { FileNode, ProjectInfo, TabFile } from '../../types/project'
 
 export type ProjectControllerStatus = 'idle' | 'opening-project' | 'opening-file' | 'saving'
@@ -31,10 +32,12 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   const markExternalConflict = useWorkspaceStore((state) => state.markExternalConflict)
   const renamePath = useWorkspaceStore((state) => state.renamePath)
   const closeTabsUnderPath = useWorkspaceStore((state) => state.closeTabsUnderPath)
+  const setActiveProject = useWorkspaceStore((state) => state.setActiveProject)
 
   const registerProject = useCallback(
     async (info: ProjectInfo) => {
       addRecentProject({ name: info.name, rootPath: info.rootPath })
+      setActiveProject(info.rootPath)
 
       const existing = useWorkspaceStore
         .getState()
@@ -63,7 +66,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
         setProjectTreeLoading(info.rootPath, false)
       }
     },
-    [api, addProject, toggleProjectExpanded, setProjectTree, setProjectTreeError, setProjectTreeLoading],
+    [api, addProject, setActiveProject, toggleProjectExpanded, setProjectTree, setProjectTreeError, setProjectTreeLoading],
   )
 
   const openProject = useCallback(async () => {
@@ -186,9 +189,13 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
 
     setStatus('saving')
     setError(null)
+    const wasDirty = activeTab.isDirty
     try {
       await api.writeFile(activeTab.rootPath, activeTab.path, activeTab.content)
       markSaved(activeTab.path)
+      if (wasDirty) {
+        recordRecentFile({ name: activeTab.name, path: activeTab.path, relativePath: activeTab.relativePath, rootPath: activeTab.rootPath })
+      }
     } catch (caughtError) {
       setError(errorMessage(caughtError))
     } finally {

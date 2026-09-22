@@ -30,4 +30,14 @@ describe('settings store', () => {
     expect(stored).toBeTruthy()
     expect(JSON.parse(stored!).state.editorFontSize).toBe('large')
   })
+
+  it('stores session restoration, startup project and recent visibility preferences', () => {
+    useSettingsStore.getState().setRestoreLastSession(true)
+    useSettingsStore.getState().setStartupProject('last')
+    useSettingsStore.getState().setShowRecentFiles(false)
+
+    expect(useSettingsStore.getState().restoreLastSession).toBe(true)
+    expect(useSettingsStore.getState().startupProject).toBe('last')
+    expect(useSettingsStore.getState().showRecentFiles).toBe(false)
+  })
 })

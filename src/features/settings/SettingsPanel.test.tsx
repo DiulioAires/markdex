@@ -84,4 +84,17 @@ describe('SettingsPanel', () => {
 
     expect(screen.getByRole('button', { name: 'Fechar configurações' })).toHaveFocus()
   })
+
+  it('exposes session and project startup preferences', async () => {
+    const user = userEvent.setup()
+    render(<SettingsPanel onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Abrir na última sessão' }))
+    await user.click(screen.getByRole('button', { name: 'Último projeto' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Mostrar editados recentemente' }))
+
+    expect(useSettingsStore.getState().restoreLastSession).toBe(true)
+    expect(useSettingsStore.getState().startupProject).toBe('last')
+    expect(useSettingsStore.getState().showRecentFiles).toBe(false)
+  })
 })

@@ -12,8 +12,11 @@ interface WorkspaceState {
   projects: ProjectEntry[]
   tabs: DocumentTab[]
   activeTabPath: string | null
+  activeProjectRootPath: string | null
   viewMode: ViewMode
   addProject: (entry: ProjectEntry) => void
+  moveProject: (rootPath: string, targetIndex: number) => void
+  setActiveProject: (rootPath: string | null) => void
   removeProject: (rootPath: string) => void
   toggleProjectExpanded: (rootPath: string) => void
   setProjectTree: (rootPath: string, tree: FileNode[]) => void
@@ -38,6 +41,7 @@ const initialState = {
   projects: [] as ProjectEntry[],
   tabs: [] as DocumentTab[],
   activeTabPath: null as string | null,
+  activeProjectRootPath: null as string | null,
   viewMode: 'editor' as ViewMode,
 }
 
@@ -50,6 +54,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return alreadyOpen ? state : { projects: [...state.projects, entry] }
     }),
 
+  moveProject: (rootPath, targetIndex) =>
+    set((state) => {
+      const currentIndex = state.projects.findIndex((project) => project.info.rootPath === rootPath)
+      if (currentIndex === -1) return state
+      const projects = [...state.projects]
+      const [project] = projects.splice(currentIndex, 1)
+      const boundedIndex = Math.max(0, Math.min(targetIndex, projects.length))
+      projects.splice(boundedIndex, 0, project)
+      return { projects }
+    }),
+
+  setActiveProject: (activeProjectRootPath) => set({ activeProjectRootPath }),
+
   removeProject: (rootPath) => {
     get()
       .tabs.filter((tab) => tab.rootPath === rootPath)
@@ -57,6 +74,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     set((state) => ({
       projects: state.projects.filter((project) => project.info.rootPath !== rootPath),
+      activeProjectRootPath:
+        state.activeProjectRootPath === rootPath ? null : state.activeProjectRootPath,
     }))
   },
 
@@ -111,13 +130,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
               },
             ],
         activeTabPath: file.path,
+        activeProjectRootPath: file.rootPath,
       }
     }),
 
   activateTab: (path) =>
-    set((state) =>
-      state.tabs.some((tab) => tab.path === path) ? { activeTabPath: path } : state,
-    ),
+    set((state) => {
+      const tab = state.tabs.find((candidate) => candidate.path === path)
+      return tab ? { activeTabPath: path, activeProjectRootPath: tab.rootPath } : state
+    }),
 
   updateBuffer: (path, content) =>
     set((state) => ({
