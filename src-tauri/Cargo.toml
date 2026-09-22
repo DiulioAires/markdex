@@ -1,6 +1,6 @@
 [package]
 name = "markdex"
-version = "1.0.1"
+version = "1.0.2"
 description = "Markdex, a desktop Markdown project manager"
 authors = ["Diulio Aires"]
 license = "MIT"
