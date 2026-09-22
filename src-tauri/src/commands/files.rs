@@ -7,6 +7,7 @@ use cap_std::{
 use std::{
     cmp::Ordering,
     collections::HashMap,
+    fs,
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::Mutex,
@@ -693,4 +694,183 @@ mod tests {
 
         assert!(!tree.is_empty());
     }
+
+    #[test]
+    fn creates_markdown_files_and_directories_inside_authorized_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+        let root = dir.path().display().to_string();
+
+        create_directory_for(&project_root, root.clone(), dir.path().join("docs").display().to_string()).unwrap();
+        create_markdown_file_for(&project_root, root, dir.path().join("docs/new.md").display().to_string()).unwrap();
+
+        assert!(dir.path().join("docs/new.md").is_file());
+    }
+
+    #[test]
+    fn rejects_invalid_create_names_and_existing_targets() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+        let root = dir.path().display().to_string();
+        assert!(create_markdown_file_for(&project_root, root.clone(), dir.path().join("bad.txt").display().to_string()).is_err());
+        fs::write(dir.path().join("existing.md"), "").unwrap();
+        assert!(create_markdown_file_for(&project_root, root, dir.path().join("existing.md").display().to_string()).is_err());
+    }
+
+    #[test]
+    fn renames_and_deletes_entries_but_blocks_non_empty_directory_delete() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_root = AuthorizedProjectRoot::default();
+        project_root.authorize(dir.path()).unwrap();
+        let root = dir.path().display().to_string();
+        let old = dir.path().join("old.md");
+        fs::write(&old, "# old").unwrap();
+        rename_entry_for(&project_root, root.clone(), old.display().to_string(), dir.path().join("new.md").display().to_string()).unwrap();
+        assert!(dir.path().join("new.md").is_file());
+        delete_entry_for(&project_root, root.clone(), dir.path().join("new.md").display().to_string()).unwrap();
+        assert!(!dir.path().join("new.md").exists());
+
+        let folder = dir.path().join("folder");
+        fs::create_dir(&folder).unwrap();
+        fs::write(folder.join("child.md"), "").unwrap();
+        assert!(delete_entry_for(&project_root, root, folder.display().to_string()).is_err());
+    }
+}
+
+#[tauri::command]
+pub fn create_markdown_file(
+    root_path: String,
+    file_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<(), String> {
+    create_markdown_file_for(project_root.inner(), root_path, file_path)
+}
+
+fn create_markdown_file_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    file_path: String,
+) -> Result<(), String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let relative = mutation_path(&project, Path::new(&file_path), true)?;
+    if !is_markdown_path(&relative) {
+        return Err("Only .md and .mdx files are allowed".to_owned());
+    }
+    let full = project.canonical_root.join(&relative);
+    if full.exists() {
+        return Err("An entry already exists at that path".to_owned());
+    }
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&full)
+        .map_err(|error| format!("Failed to create Markdown file: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_directory(
+    root_path: String,
+    directory_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<(), String> {
+    create_directory_for(project_root.inner(), root_path, directory_path)
+}
+
+fn create_directory_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    directory_path: String,
+) -> Result<(), String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let relative = mutation_path(&project, Path::new(&directory_path), false)?;
+    let full = project.canonical_root.join(&relative);
+    if full.exists() {
+        return Err("An entry already exists at that path".to_owned());
+    }
+    fs::create_dir(&full).map_err(|error| format!("Failed to create folder: {error}"))
+}
+
+#[tauri::command]
+pub fn rename_entry(
+    root_path: String,
+    old_path: String,
+    new_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<(), String> {
+    rename_entry_for(project_root.inner(), root_path, old_path, new_path)
+}
+
+fn rename_entry_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let old_relative = mutation_path(&project, Path::new(&old_path), false)?;
+    let new_relative = mutation_path(&project, Path::new(&new_path), false)?;
+    if is_markdown_path(&old_relative) != is_markdown_path(&new_relative) {
+        return Err("Markdown files must keep a Markdown extension".to_owned());
+    }
+    let old_full = project.canonical_root.join(&old_relative);
+    let new_full = project.canonical_root.join(&new_relative);
+    if !old_full.exists() {
+        return Err("Entry does not exist".to_owned());
+    }
+    if new_full.exists() {
+        return Err("An entry already exists at that path".to_owned());
+    }
+    fs::rename(old_full, new_full).map_err(|error| format!("Failed to rename entry: {error}"))
+}
+
+#[tauri::command]
+pub fn delete_entry(
+    root_path: String,
+    entry_path: String,
+    project_root: tauri::State<AuthorizedProjectRoot>,
+) -> Result<(), String> {
+    delete_entry_for(project_root.inner(), root_path, entry_path)
+}
+
+fn delete_entry_for(
+    project_root: &AuthorizedProjectRoot,
+    root_path: String,
+    entry_path: String,
+) -> Result<(), String> {
+    let project = project_root.require(Path::new(&root_path))?;
+    let relative = mutation_path(&project, Path::new(&entry_path), false)?;
+    let full = project.canonical_root.join(&relative);
+    let metadata = fs::symlink_metadata(&full).map_err(|error| format!("Failed to inspect entry: {error}"))?;
+    if metadata.is_dir() {
+        if fs::read_dir(&full).map_err(|error| format!("Failed to inspect folder: {error}"))?.next().is_some() {
+            return Err("Only empty folders can be deleted".to_owned());
+        }
+        fs::remove_dir(full).map_err(|error| format!("Failed to delete folder: {error}"))
+    } else {
+        fs::remove_file(full).map_err(|error| format!("Failed to delete file: {error}"))
+    }
+}
+
+fn mutation_path(project: &AuthorizedProjectAccess, requested: &Path, require_markdown: bool) -> Result<PathBuf, String> {
+    let relative = requested
+        .strip_prefix(&project.requested_root)
+        .map_err(|_| "Path is outside the open project".to_owned())?;
+    if relative.as_os_str().is_empty() || relative.components().any(|component| matches!(component, std::path::Component::ParentDir | std::path::Component::RootDir | std::path::Component::Prefix(_))) {
+        return Err("Path is outside the open project".to_owned());
+    }
+    if relative.file_name().and_then(|name| name.to_str()).map_or(true, |name| name.is_empty() || name == "." || name == "..") {
+        return Err("Invalid entry name".to_owned());
+    }
+    if require_markdown && !is_markdown_path(relative) {
+        return Err("Only .md and .mdx files are allowed".to_owned());
+    }
+    let parent = project.canonical_root.join(relative).parent().map(Path::to_path_buf).ok_or_else(|| "Invalid entry path".to_owned())?;
+    let canonical_parent = parent.canonicalize().map_err(|error| format!("Failed to resolve parent directory: {error}"))?;
+    if !canonical_parent.starts_with(&project.canonical_root) || !canonical_parent.is_dir() {
+        return Err("Path is outside the open project".to_owned());
+    }
+    Ok(relative.to_owned())
 }
