@@ -646,6 +646,32 @@ kbd {
   white-space: nowrap;
 }
 
+.file-tree__context-menu {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--surface, #1f2430);
+  border: 1px solid var(--border, #3b4354);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+}
+
+.file-tree__context-menu button {
+  padding: 6px 10px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.file-tree__context-menu button:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
 .file-tree__empty {
   margin: 0;
   padding: 0.5rem;

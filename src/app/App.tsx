@@ -25,6 +25,10 @@ export function App({ api }: AppProps = {}) {
     syncOpenFiles,
     syncOpenProjectTrees,
     refreshTree,
+    createFile,
+    createDirectory,
+    renameEntry,
+    deleteEntry,
     status,
     error,
   } = useProjectController(api)
@@ -42,6 +46,12 @@ export function App({ api }: AppProps = {}) {
     : null
   const statusBarProjectName =
     activeProject?.info.name ?? (projects.length === 1 ? projects[0].info.name : null)
+
+  const askEntryName = (directory: string, isFolder: boolean) => {
+    const name = window.prompt(isFolder ? 'Nome da pasta:' : 'Nome do arquivo Markdown:', isFolder ? '' : 'novo.md')?.trim()
+    if (!name) return null
+    return `${directory.replace(/[\\/]$/, '')}/${name}`
+  }
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const visibleError = error && error !== dismissedError ? error : null
@@ -198,6 +208,24 @@ export function App({ api }: AppProps = {}) {
           onToggleExpand={(rootPath) => useWorkspaceStore.getState().toggleProjectExpanded(rootPath)}
           onRefresh={(rootPath) => void refreshTree(rootPath)}
           onClose={(rootPath) => void closeProject(rootPath)}
+          onCreateFile={(rootPath, parentPath) => {
+            const path = askEntryName(parentPath ?? rootPath, false)
+            if (path) void createFile(rootPath, path)
+          }}
+          onCreateDirectory={(rootPath, parentPath) => {
+            const path = askEntryName(parentPath ?? rootPath, true)
+            if (path) void createDirectory(rootPath, path)
+          }}
+          onRename={(rootPath, node) => {
+            const name = window.prompt('Novo nome:', node.name)?.trim()
+            if (!name) return
+            const separator = Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\'))
+            const parent = node.path.slice(0, separator + 1)
+            void renameEntry(rootPath, node.path, `${parent}${name}`)
+          }}
+          onDelete={(rootPath, node) => {
+            if (window.confirm(`Apagar ${node.name}?`)) void deleteEntry(rootPath, node.path)
+          }}
         />
       }
       workspaceSlot={
