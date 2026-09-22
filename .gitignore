@@ -5,6 +5,7 @@ src-tauri/target/
 *.log
 *.tsbuildinfo
 work/
+.worktrees/
 .env
 .env.*
 !.env.example
