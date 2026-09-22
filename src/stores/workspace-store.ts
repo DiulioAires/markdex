@@ -27,6 +27,8 @@ interface WorkspaceState {
   clearExternalConflict: (path: string) => void
   updateCursor: (path: string, cursor: CursorPosition) => void
   markSaved: (path: string) => void
+  renamePath: (oldPath: string, newPath: string) => void
+  closeTabsUnderPath: (path: string) => void
   closeTab: (path: string) => void
   setViewMode: (viewMode: ViewMode) => void
   reset: () => void
@@ -162,6 +164,28 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           : tab,
       ),
     })),
+
+  renamePath: (oldPath, newPath) =>
+    set((state) => {
+      const replace = (value: string) => value === oldPath ? newPath : value.startsWith(`${oldPath}/`) || value.startsWith(`${oldPath}\\`) ? `${newPath}${value.slice(oldPath.length)}` : value
+      return {
+        tabs: state.tabs.map((tab) => ({
+          ...tab,
+          path: replace(tab.path),
+          name: tab.path === oldPath ? newPath.split(/[\\/]/).pop() ?? tab.name : tab.name,
+          relativePath: replace(tab.relativePath),
+        })),
+        activeTabPath: state.activeTabPath ? replace(state.activeTabPath) : null,
+      }
+    }),
+
+  closeTabsUnderPath: (path) =>
+    set((state) => {
+      const isUnder = (value: string) => value === path || value.startsWith(`${path}/`) || value.startsWith(`${path}\\`)
+      const tabs = state.tabs.filter((tab) => !isUnder(tab.path))
+      const activeClosed = state.activeTabPath ? isUnder(state.activeTabPath) : false
+      return { tabs, activeTabPath: activeClosed ? tabs[0]?.path ?? null : state.activeTabPath }
+    }),
 
   closeTab: (path) =>
     set((state) => {
