@@ -30,6 +30,7 @@ export interface AppShellProps {
   commandPaletteSlot?: ReactNode
   onOpenCommandPalette?: () => void
   onOpenSettings?: () => void
+  onToggleMaximize?: () => void
 }
 
 export function AppShell({
@@ -50,6 +51,7 @@ export function AppShell({
   commandPaletteSlot,
   onOpenCommandPalette,
   onOpenSettings,
+  onToggleMaximize,
 }: AppShellProps) {
   const [explorerWidth, setExplorerWidth] = useState(DEFAULT_EXPLORER_WIDTH)
   const dragState = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -95,6 +97,7 @@ export function AppShell({
         isOpening={isOpening}
         onOpenCommandPalette={onOpenCommandPalette}
         onOpenSettings={onOpenSettings}
+        onToggleMaximize={onToggleMaximize}
       />
       <div className="app-shell__body">
         <aside
