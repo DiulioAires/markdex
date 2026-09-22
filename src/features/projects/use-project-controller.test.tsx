@@ -273,6 +273,33 @@ describe('useProjectController', () => {
     expect(listTree).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps the current tree visible while syncing it in the background', async () => {
+    let resolveRefresh!: (tree: FileNode[]) => void
+    const refreshPromise = new Promise<FileNode[]>((resolve) => {
+      resolveRefresh = resolve
+    })
+    const listTree = vi.fn().mockResolvedValueOnce([readme]).mockReturnValueOnce(refreshPromise)
+    const api = createFakeApi({ listTree })
+    const { result } = renderHook(() => useProjectController(api))
+
+    await act(async () => {
+      await result.current.openProject()
+    })
+
+    let syncPromise!: Promise<void>
+    act(() => {
+      syncPromise = result.current.syncOpenProjectTrees()
+    })
+
+    expect(useWorkspaceStore.getState().projects[0].isLoadingTree).toBe(false)
+    expect(useWorkspaceStore.getState().projects[0].tree).toEqual([readme])
+
+    resolveRefresh([readme])
+    await act(async () => {
+      await syncPromise
+    })
+  })
+
   it('opens a file by reading it once, and reuses the tab on a second open', async () => {
     const api = createFakeApi()
     const { result } = renderHook(() => useProjectController(api))

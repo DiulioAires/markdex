@@ -111,7 +111,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   )
 
   const refreshTree = useCallback(
-    async (rootPath: string) => {
+    async (rootPath: string, options: { background?: boolean } = {}) => {
       const project = useWorkspaceStore
         .getState()
         .projects.find((entry) => entry.info.rootPath === rootPath)
@@ -119,15 +119,21 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
         return
       }
 
-      setProjectTreeError(rootPath, null)
-      setProjectTreeLoading(rootPath, true)
+      if (!options.background) {
+        setProjectTreeError(rootPath, null)
+        setProjectTreeLoading(rootPath, true)
+      }
       try {
         const tree = await api.listTree(rootPath)
         setProjectTree(rootPath, tree)
       } catch (caughtError) {
-        setProjectTreeError(rootPath, errorMessage(caughtError))
+        if (!options.background) {
+          setProjectTreeError(rootPath, errorMessage(caughtError))
+        }
       } finally {
-        setProjectTreeLoading(rootPath, false)
+        if (!options.background) {
+          setProjectTreeLoading(rootPath, false)
+        }
       }
     },
     [api, setProjectTree, setProjectTreeError, setProjectTreeLoading],
@@ -135,7 +141,7 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
 
   const syncOpenProjectTrees = useCallback(async () => {
     const roots = useWorkspaceStore.getState().projects.map((entry) => entry.info.rootPath)
-    await Promise.all(roots.map((rootPath) => refreshTree(rootPath)))
+    await Promise.all(roots.map((rootPath) => refreshTree(rootPath, { background: true })))
   }, [refreshTree])
 
   const openFile = useCallback(
