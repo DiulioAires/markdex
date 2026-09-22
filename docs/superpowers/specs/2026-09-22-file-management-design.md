@@ -91,3 +91,27 @@ that folder. A failed rename or delete never changes tab state.
 - Explorer tests for create/context-menu/rename/delete interactions and
   confirmation behavior.
 - Full frontend test suite, `npm run build`, and Rust tests before release.
+
+## Automatic updates
+
+The application will use the official Tauri updater with GitHub Releases as
+the update source. Update artifacts must be signed; the public key is stored
+in the Tauri configuration and the private key is kept outside the repository
+as a GitHub Actions secret.
+
+When a check finds a newer release, Markdex shows a notice with the available
+version and asks permission before downloading. After download, it asks for a
+second confirmation before installing and restarting the application. No
+update is downloaded or installed without the user's permission.
+
+On first use, the app asks whether automatic update checks should be enabled.
+The Settings panel exposes a persisted `automaticUpdates` toggle. When enabled,
+the app checks GitHub Releases once per day; when disabled, it does not perform
+scheduled checks, while an explicit “Verificar atualizações” action remains
+available. The last successful check timestamp is persisted to avoid duplicate
+checks during one day.
+
+The release workflow must generate signed Windows bundles and the updater
+manifest for each version. Existing releases without signed updater metadata
+remain downloadable but are not treated as update candidates until a signed
+release is published.
