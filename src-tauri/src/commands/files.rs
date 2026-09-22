@@ -432,7 +432,12 @@ fn modified_at_millis(directory: &Dir, path: &Path) -> Option<i64> {
         .metadata(path)
         .ok()
         .and_then(|metadata| metadata.modified().ok())
-        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+        .and_then(|modified| {
+            modified
+                .into_std()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+        })
         .map(|duration| duration.as_millis() as i64)
 }
 
@@ -576,17 +581,24 @@ mod tests {
         project_root.authorize(first.path()).unwrap();
         project_root.authorize(second.path()).unwrap();
 
-        let first_tree = list_markdown_tree_for(&project_root, first.path().display().to_string()).unwrap();
-        let second_tree = list_markdown_tree_for(&project_root, second.path().display().to_string()).unwrap();
+        let first_tree =
+            list_markdown_tree_for(&project_root, first.path().display().to_string()).unwrap();
+        let second_tree =
+            list_markdown_tree_for(&project_root, second.path().display().to_string()).unwrap();
 
-        assert!(matches!(first_tree.as_slice(), [FileNode::File { name, .. }] if name == "first.md"));
-        assert!(matches!(second_tree.as_slice(), [FileNode::File { name, .. }] if name == "second.md"));
+        assert!(
+            matches!(first_tree.as_slice(), [FileNode::File { name, .. }] if name == "first.md")
+        );
+        assert!(
+            matches!(second_tree.as_slice(), [FileNode::File { name, .. }] if name == "second.md")
+        );
         assert_eq!(
             read_markdown_file_for(
                 &project_root,
                 second.path().display().to_string(),
                 second.path().join("second.md").display().to_string(),
-            ).unwrap(),
+            )
+            .unwrap(),
             "# Second"
         );
     }
@@ -675,7 +687,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let directory = Dir::open_ambient_dir(dir.path(), ambient_authority()).unwrap();
 
-        assert_eq!(modified_at_millis(&directory, Path::new("missing.md")), None);
+        assert_eq!(
+            modified_at_millis(&directory, Path::new("missing.md")),
+            None
+        );
     }
 
     #[test]
@@ -755,8 +770,18 @@ mod tests {
         project_root.authorize(dir.path()).unwrap();
         let root = dir.path().display().to_string();
 
-        create_directory_for(&project_root, root.clone(), dir.path().join("docs").display().to_string()).unwrap();
-        create_markdown_file_for(&project_root, root, dir.path().join("docs/new.md").display().to_string()).unwrap();
+        create_directory_for(
+            &project_root,
+            root.clone(),
+            dir.path().join("docs").display().to_string(),
+        )
+        .unwrap();
+        create_markdown_file_for(
+            &project_root,
+            root,
+            dir.path().join("docs/new.md").display().to_string(),
+        )
+        .unwrap();
 
         assert!(dir.path().join("docs/new.md").is_file());
     }
@@ -767,9 +792,19 @@ mod tests {
         let project_root = AuthorizedProjectRoot::default();
         project_root.authorize(dir.path()).unwrap();
         let root = dir.path().display().to_string();
-        assert!(create_markdown_file_for(&project_root, root.clone(), dir.path().join("bad.txt").display().to_string()).is_err());
+        assert!(create_markdown_file_for(
+            &project_root,
+            root.clone(),
+            dir.path().join("bad.txt").display().to_string()
+        )
+        .is_err());
         fs::write(dir.path().join("existing.md"), "").unwrap();
-        assert!(create_markdown_file_for(&project_root, root, dir.path().join("existing.md").display().to_string()).is_err());
+        assert!(create_markdown_file_for(
+            &project_root,
+            root,
+            dir.path().join("existing.md").display().to_string()
+        )
+        .is_err());
     }
 
     #[test]
@@ -780,9 +815,20 @@ mod tests {
         let root = dir.path().display().to_string();
         let old = dir.path().join("old.md");
         fs::write(&old, "# old").unwrap();
-        rename_entry_for(&project_root, root.clone(), old.display().to_string(), dir.path().join("new.md").display().to_string()).unwrap();
+        rename_entry_for(
+            &project_root,
+            root.clone(),
+            old.display().to_string(),
+            dir.path().join("new.md").display().to_string(),
+        )
+        .unwrap();
         assert!(dir.path().join("new.md").is_file());
-        delete_entry_for(&project_root, root.clone(), dir.path().join("new.md").display().to_string()).unwrap();
+        delete_entry_for(
+            &project_root,
+            root.clone(),
+            dir.path().join("new.md").display().to_string(),
+        )
+        .unwrap();
         assert!(!dir.path().join("new.md").exists());
 
         let folder = dir.path().join("folder");
@@ -896,9 +942,14 @@ fn delete_entry_for(
     let project = project_root.require(Path::new(&root_path))?;
     let relative = mutation_path(&project, Path::new(&entry_path), false)?;
     let full = project.canonical_root.join(&relative);
-    let metadata = fs::symlink_metadata(&full).map_err(|error| format!("Failed to inspect entry: {error}"))?;
+    let metadata =
+        fs::symlink_metadata(&full).map_err(|error| format!("Failed to inspect entry: {error}"))?;
     if metadata.is_dir() {
-        if fs::read_dir(&full).map_err(|error| format!("Failed to inspect folder: {error}"))?.next().is_some() {
+        if fs::read_dir(&full)
+            .map_err(|error| format!("Failed to inspect folder: {error}"))?
+            .next()
+            .is_some()
+        {
             return Err("Only empty folders can be deleted".to_owned());
         }
         fs::remove_dir(full).map_err(|error| format!("Failed to delete folder: {error}"))
@@ -907,21 +958,45 @@ fn delete_entry_for(
     }
 }
 
-fn mutation_path(project: &AuthorizedProjectAccess, requested: &Path, require_markdown: bool) -> Result<PathBuf, String> {
+fn mutation_path(
+    project: &AuthorizedProjectAccess,
+    requested: &Path,
+    require_markdown: bool,
+) -> Result<PathBuf, String> {
     let relative = requested
         .strip_prefix(&project.requested_root)
         .map_err(|_| "Path is outside the open project".to_owned())?;
-    if relative.as_os_str().is_empty() || relative.components().any(|component| matches!(component, std::path::Component::ParentDir | std::path::Component::RootDir | std::path::Component::Prefix(_))) {
+    if relative.as_os_str().is_empty()
+        || relative.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
         return Err("Path is outside the open project".to_owned());
     }
-    if relative.file_name().and_then(|name| name.to_str()).map_or(true, |name| name.is_empty() || name == "." || name == "..") {
+    if relative
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map_or(true, |name| name.is_empty() || name == "." || name == "..")
+    {
         return Err("Invalid entry name".to_owned());
     }
     if require_markdown && !is_markdown_path(relative) {
         return Err("Only .md and .mdx files are allowed".to_owned());
     }
-    let parent = project.canonical_root.join(relative).parent().map(Path::to_path_buf).ok_or_else(|| "Invalid entry path".to_owned())?;
-    let canonical_parent = parent.canonicalize().map_err(|error| format!("Failed to resolve parent directory: {error}"))?;
+    let parent = project
+        .canonical_root
+        .join(relative)
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "Invalid entry path".to_owned())?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve parent directory: {error}"))?;
     if !canonical_parent.starts_with(&project.canonical_root) || !canonical_parent.is_dir() {
         return Err("Path is outside the open project".to_owned());
     }
