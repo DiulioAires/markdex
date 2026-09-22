@@ -9,9 +9,9 @@ back to disk — all in a small, focused, offline-first app.
 
 ## Download
 
-The current release is [Markdex v1.0.3](https://github.com/DiulioAires/markdex/releases/tag/v1.0.3).
-Windows users can install it with either the [NSIS installer](https://github.com/DiulioAires/markdex/releases/download/v1.0.3/Markdex_1.0.3_x64-setup.exe)
-or the [MSI package](https://github.com/DiulioAires/markdex/releases/download/v1.0.3/Markdex_1.0.3_x64_en-US.msi).
+The current release is [Markdex v1.0.4](https://github.com/DiulioAires/markdex/releases/tag/v1.0.4).
+Windows users can install it with either the [NSIS installer](https://github.com/DiulioAires/markdex/releases/download/v1.0.4/Markdex_1.0.4_x64-setup.exe)
+or the [MSI package](https://github.com/DiulioAires/markdex/releases/download/v1.0.4/Markdex_1.0.4_x64_en-US.msi).
 
 ## Features
 
@@ -130,7 +130,7 @@ they were left out on purpose to keep Markdex small and predictable:
 - **No theme switching.** Markdex is dark-themed by design.
 
 These may be considered for future releases but are not part of the current
-1.0.3 release.
+1.0.4 release.
 
 ## License
 
