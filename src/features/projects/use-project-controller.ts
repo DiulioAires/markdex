@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { nativeApi as defaultNativeApi, type NativeApi } from '../../lib/native-api'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { addRecentProject, removeRecentProject } from './recent-projects'
@@ -6,6 +6,7 @@ import { recordRecentFile } from './recent-files'
 import type { FileNode, ProjectInfo, TabFile } from '../../types/project'
 
 export type ProjectControllerStatus = 'idle' | 'opening-project' | 'opening-file' | 'saving'
+type RefreshTreeOptions = { background?: boolean }
 
 function toTabFile(file: FileNode, rootPath: string): TabFile {
   return { name: file.name, path: file.path, relativePath: file.relativePath, rootPath }
@@ -18,6 +19,9 @@ function errorMessage(error: unknown): string {
 export function useProjectController(api: NativeApi = defaultNativeApi) {
   const [status, setStatus] = useState<ProjectControllerStatus>('idle')
   const [error, setError] = useState<string | null>(null)
+  const refreshingRoots = useRef(new Set<string>())
+  const pendingTreeRefreshes = useRef(new Set<string>())
+  const refreshTreeRef = useRef<((rootPath: string, options?: RefreshTreeOptions) => Promise<void>) | null>(null)
 
   const addProject = useWorkspaceStore((state) => state.addProject)
   const removeProject = useWorkspaceStore((state) => state.removeProject)
@@ -64,6 +68,11 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
         setProjectTreeError(info.rootPath, errorMessage(caughtError))
       } finally {
         setProjectTreeLoading(info.rootPath, false)
+        if (pendingTreeRefreshes.current.delete(info.rootPath)) {
+          window.setTimeout(() => {
+            void refreshTreeRef.current?.(info.rootPath, { background: true })
+          }, 500)
+        }
       }
     },
     [api, addProject, setActiveProject, toggleProjectExpanded, setProjectTree, setProjectTreeError, setProjectTreeLoading],
@@ -116,13 +125,22 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
   )
 
   const refreshTree = useCallback(
-    async (rootPath: string, options: { background?: boolean } = {}) => {
+    async (rootPath: string, options: RefreshTreeOptions = {}) => {
       const project = useWorkspaceStore
         .getState()
         .projects.find((entry) => entry.info.rootPath === rootPath)
-      if (!project || project.isLoadingTree) {
+      if (!project) {
         return
       }
+      if (project.isLoadingTree) {
+        pendingTreeRefreshes.current.add(rootPath)
+        return
+      }
+      if (refreshingRoots.current.has(rootPath)) {
+        pendingTreeRefreshes.current.add(rootPath)
+        return
+      }
+      refreshingRoots.current.add(rootPath)
 
       if (!options.background) {
         setProjectTreeError(rootPath, null)
@@ -136,13 +154,20 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
           setProjectTreeError(rootPath, errorMessage(caughtError))
         }
       } finally {
+        refreshingRoots.current.delete(rootPath)
         if (!options.background) {
           setProjectTreeLoading(rootPath, false)
+        }
+        if (pendingTreeRefreshes.current.delete(rootPath)) {
+          window.setTimeout(() => {
+            void refreshTreeRef.current?.(rootPath, { background: true })
+          }, 500)
         }
       }
     },
     [api, setProjectTree, setProjectTreeError, setProjectTreeLoading],
   )
+  refreshTreeRef.current = refreshTree
 
   const openFile = useCallback(
     async (file: FileNode, rootPath: string) => {
@@ -198,8 +223,10 @@ export function useProjectController(api: NativeApi = defaultNativeApi) {
     }
   }, [api, markSaved])
 
-  const syncOpenFiles = useCallback(async () => {
-    const tabs = useWorkspaceStore.getState().tabs
+  const syncOpenFiles = useCallback(async (rootPath?: string) => {
+    const tabs = useWorkspaceStore
+      .getState()
+      .tabs.filter((tab) => rootPath === undefined || tab.rootPath === rootPath)
     await Promise.all(
       tabs.map(async (tab) => {
         try {

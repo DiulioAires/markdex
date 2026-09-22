@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod models;
+pub mod watchers;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -8,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::files::AuthorizedProjectRoot::default())
+        .manage(watchers::ProjectWatchers::default())
         .invoke_handler(tauri::generate_handler![
             commands::files::open_project,
             commands::files::open_project_at,

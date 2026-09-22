@@ -145,6 +145,7 @@ impl AuthorizedProjectAccess {
 pub fn open_project(
     app: tauri::AppHandle,
     project_root: tauri::State<AuthorizedProjectRoot>,
+    watchers: tauri::State<crate::watchers::ProjectWatchers>,
 ) -> Result<Option<ProjectInfo>, String> {
     let Some(folder) = app.dialog().file().blocking_pick_folder() else {
         return Ok(None);
@@ -154,6 +155,9 @@ pub fn open_project(
         .into_path()
         .map_err(|error| format!("Failed to resolve selected folder: {error}"))?;
     let root = project_root.authorize(&selected_path)?;
+    if let Err(error) = watchers.watch(app, root.clone()) {
+        log::warn!("Automatic project monitoring is unavailable: {error}");
+    }
     let name = root
         .file_name()
         .and_then(|name| name.to_str())
@@ -169,9 +173,15 @@ pub fn open_project(
 #[tauri::command]
 pub fn open_project_at(
     root_path: String,
+    app: tauri::AppHandle,
     project_root: tauri::State<AuthorizedProjectRoot>,
+    watchers: tauri::State<crate::watchers::ProjectWatchers>,
 ) -> Result<ProjectInfo, String> {
-    open_project_at_for(project_root.inner(), root_path)
+    let info = open_project_at_for(project_root.inner(), root_path)?;
+    if let Err(error) = watchers.watch(app, PathBuf::from(&info.root_path)) {
+        log::warn!("Automatic project monitoring is unavailable: {error}");
+    }
+    Ok(info)
 }
 
 fn open_project_at_for(
@@ -293,8 +303,12 @@ fn write_markdown_file_for(
 pub fn close_project(
     root_path: String,
     project_root: tauri::State<AuthorizedProjectRoot>,
+    watchers: tauri::State<crate::watchers::ProjectWatchers>,
 ) -> Result<(), String> {
-    close_project_for(project_root.inner(), root_path)
+    let canonical_root = canonical_project_root(Path::new(&root_path))?;
+    close_project_for(project_root.inner(), root_path)?;
+    watchers.unwatch(&canonical_root);
+    Ok(())
 }
 
 fn close_project_for(

@@ -18,6 +18,7 @@ import type { PersistedSession } from '../stores/session-store'
 import { toggleWindowMaximized } from '../lib/window-controls'
 import { useSettingsStore } from '../stores/settings-store'
 import { findUpdate, installUpdate } from '../features/updates/update-service'
+import { listen } from '@tauri-apps/api/event'
 
 export interface AppProps {
   api?: NativeApi
@@ -273,13 +274,40 @@ export function App({ api }: AppProps = {}) {
   }, [activeTab?.content, activeTab?.isDirty, activeTab?.path, autosaveEnabled, saveActiveFile])
 
   useEffect(() => {
-    if (tabs.length === 0) return
-    void syncOpenFiles()
-    const timer = window.setInterval(() => {
-      void syncOpenFiles()
-    }, 1000)
-    return () => window.clearInterval(timer)
-  }, [tabs.length, syncOpenFiles])
+    if (projects.length === 0) return
+    let cancelled = false
+    let stopListening: (() => void) | null = null
+    const pendingChanges = new Map<string, { timer: number; treeChanged: boolean; filesChanged: boolean }>()
+    void listen<{ rootPath: string; treeChanged: boolean; filesChanged: boolean }>(
+        'project-files-changed',
+        ({ payload }) => {
+          const { rootPath } = payload
+          const previous = pendingChanges.get(rootPath)
+          if (previous) window.clearTimeout(previous.timer)
+          const change = {
+            treeChanged: payload.treeChanged || previous?.treeChanged === true,
+            filesChanged: payload.filesChanged || previous?.filesChanged === true,
+          }
+          const timer = window.setTimeout(() => {
+            pendingChanges.delete(rootPath)
+            if (change.treeChanged) void refreshTree(rootPath, { background: true })
+            if (change.filesChanged) void syncOpenFiles(rootPath)
+          }, 300)
+          pendingChanges.set(rootPath, { timer, ...change })
+        },
+    ).then((unlisten) => {
+      stopListening = unlisten
+      if (cancelled) unlisten()
+    }).catch(() => {
+      // In browser-based previews, the native event bridge is unavailable.
+    })
+
+    return () => {
+      cancelled = true
+      pendingChanges.forEach(({ timer }) => window.clearTimeout(timer))
+      stopListening?.()
+    }
+  }, [projects.length, refreshTree, syncOpenFiles])
 
   if (projects.length === 0) {
     return (
